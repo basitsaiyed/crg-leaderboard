@@ -682,98 +682,162 @@ function renderMeetings(data) {
 }
 
 // ============================================================
-// PDF DOWNLOAD
+// PDF DOWNLOAD — styled to match CRG Leaderboard PDF design
 // ============================================================
 function downloadPDF() {
   const sorted = S._sorted;
   if (!sorted || !sorted.length) return;
-  const month = S.current || 'Leaderboard';
-  const data = S.allData[S.current];
+  const month = S.view === 'alltime' ? 'All Time' : (S.current || 'Leaderboard');
+  const data   = S.view === 'alltime' ? buildAllTimeData() : S.allData[S.current];
 
+  // Collect unique meeting dates in order
   const dates = [];
   data.meetings.forEach(m => { if (!dates.includes(m.date)) dates.push(m.date); });
 
-  const medals = ['🥇','🥈','🥉'];
-  const catClr = {
-    tmod:  {bg:'#E8F4FD', color:'#1D5F8A', border:'#B5D4F4'},
-    speech:{bg:'#F0FDF4', color:'#166534', border:'#BBF7D0'},
-    eval:  {bg:'#F3E8FF', color:'#6B21A8', border:'#E9D5FF'},
-    core:  {bg:'#F2F1EE', color:'#5C5A56', border:'#D0CDC7'},
+  // Format a date string like "01/02/2026" → "1st\nFeb"
+  function fmtDateBadge(raw) {
+    const slash = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (slash) {
+      const d = parseInt(slash[1], 10);
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const mon = months[parseInt(slash[2],10)-1] || '';
+      const sfx = d===1?'st':d===2?'nd':d===3?'rd':'th';
+      return { day: d+sfx, mon };
+    }
+    // fallback: try to extract day + month word
+    const wm = raw.match(/(\d{1,2})(st|nd|rd|th)?\s+([A-Za-z]+)/i);
+    if (wm) return { day: wm[1]+(wm[2]||'th'), mon: wm[3].slice(0,3) };
+    return { day: raw, mon: '' };
+  }
+
+  // Role display name → short label for badge
+  const ROLE_SHORT = {
+    'TMOD':              'TOAST MASTER\nOF THE DAY',
+    'TTM':               'TABLE TOPICS\nMASTER',
+    'Prepared Speech':   'PREPARED\nSPEECH',
+    'Speech Evaluator':  'SPEECH\nEVALUATOR',
+    'General Evaluator': 'GENERAL\nEVALUATOR',
+    'Grammarian':        'GRAMMARIAN',
+    'Ah-counter':        'AH-COUNTER',
+    'Timer':             'TIMER',
   };
 
-  const dateHdrs = dates.map(d => `<th style="padding:8px 6px;font-size:10px;color:#fff;text-align:center;min-width:85px;">${d}</th>`).join('');
+  function badgeLabel(display) {
+    return (ROLE_SHORT[display] || display.toUpperCase()).replace(/\n/g, '<br>');
+  }
+
+  // Dark-red circular badge matching the PDF style
+  function roleBadge(display, pts) {
+    const label = badgeLabel(display);
+    return `<div style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;
+      width:54px;height:54px;border-radius:50%;background:#8B1A1A;border:3px solid #6B1414;
+      color:#fff;text-align:center;margin:2px;flex-shrink:0;">
+      <div style="font-size:6px;font-weight:700;line-height:1.2;letter-spacing:0.3px;text-transform:uppercase;padding:0 4px;">${label}</div>
+      <div style="font-size:14px;font-weight:900;line-height:1;margin-top:1px;">${pts}</div>
+    </div>`;
+  }
+
+  // Calendar icon header for each date column
+  function dateColHeader(raw) {
+    const { day, mon } = fmtDateBadge(raw);
+    return `<th style="padding:6px 4px;text-align:center;min-width:90px;vertical-align:bottom;">
+      <div style="display:inline-flex;flex-direction:column;align-items:center;background:rgba(255,255,255,0.12);
+        border-radius:8px;padding:5px 8px;min-width:60px;">
+        <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,0.6);letter-spacing:1px;
+          border-bottom:1px solid rgba(255,255,255,0.3);width:100%;text-align:center;padding-bottom:2px;margin-bottom:2px;">
+          &#128197;
+        </div>
+        <div style="font-size:13px;font-weight:800;color:#fff;line-height:1;">${day}</div>
+        <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,0.8);">${mon}</div>
+      </div>
+    </th>`;
+  }
+
+  const dateHdrs = dates.map(d => dateColHeader(d)).join('');
 
   const rows = sorted.map((m, i) => {
-    const freq = {};
-    m.roles.forEach(r => { freq[r.display] = freq[r.display] || {count:0,cat:r.cat}; freq[r.display].count++; });
-    const chips = Object.entries(freq).map(([name,{count,cat}]) => {
-      const c = catClr[cat] || catClr.core;
-      return `<span style="display:inline-block;background:${c.bg};color:${c.color};border:1px solid ${c.border};border-radius:3px;padding:1px 5px;font-size:9px;font-weight:600;margin:1px;">${name}${count>1?' ×'+count:''}</span>`;
-    }).join('');
-
     const dateCells = dates.map(date => {
       const dayRoles = m.roles.filter(r => r.date === date);
-      if (!dayRoles.length) return `<td style="text-align:center;color:#ccc;font-size:11px;padding:6px;">—</td>`;
-      const content = dayRoles.map(r => {
-        const c = catClr[r.cat] || catClr.core;
-        return `<div style="background:${c.bg};color:${c.color};border-radius:3px;padding:2px 5px;font-size:8px;font-weight:600;margin:1px;display:inline-block;">${r.display} +${r.pts}</div>`;
-      }).join('');
-      return `<td style="text-align:center;padding:4px;">${content}</td>`;
+      if (!dayRoles.length) return `<td style="text-align:center;padding:6px;background:#f5f5f5;"></td>`;
+      const badges = dayRoles.map(r => roleBadge(r.display, r.pts)).join('');
+      return `<td style="text-align:center;padding:6px;background:#fff;">
+        <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:2px;">${badges}</div>
+      </td>`;
     }).join('');
 
-    const bg = i===0?'#FFFDF4':i%2===0?'#FAFAFA':'#FFFFFF';
-    const rank = i<3 ? medals[i] : `<span style="font-size:12px;font-weight:600;color:#999">${i+1}</span>`;
-    return `<tr style="background:${bg};border-bottom:1px solid #e8e6e2;">
-      <td style="padding:8px;text-align:center;font-size:${i<3?'18':'12'}px;">${rank}</td>
-      <td style="padding:8px 12px;">
-        <div style="font-weight:600;font-size:${i===0?'14':'12'}px;color:#1E3A5F;">${m.name}</div>
-        <div style="margin-top:3px;">${chips}</div>
+    const rowBg = i % 2 === 0 ? '#f9f9f9' : '#ffffff';
+    const nameSz = i === 0 ? '15px' : '13px';
+    const nameFw = i === 0 ? '800' : '700';
+    const totalSz = i === 0 ? '28px' : '22px';
+
+    return `<tr style="background:${rowBg};border-bottom:2px solid #e0e0e0;">
+      <td style="padding:10px 8px;text-align:left;vertical-align:middle;">
+        <div style="font-family:Arial Black,Arial,sans-serif;font-size:${nameSz};font-weight:${nameFw};
+          color:#1a1a1a;letter-spacing:0.5px;text-transform:uppercase;">${m.name}</div>
       </td>
       ${dateCells}
-      <td style="text-align:center;padding:8px;">
-        <div style="font-size:${i===0?'20':'16'}px;font-weight:700;color:${i===0?'#8B1A1A':'#1E3A5F'};">${m.pts}</div>
-        <div style="font-size:9px;color:#999;">pts</div>
+      <td style="text-align:center;padding:8px;vertical-align:middle;">
+        <div style="font-family:Arial Black,Arial,sans-serif;font-size:${totalSz};font-weight:900;
+          color:#1a1a1a;line-height:1;">${m.pts}</div>
       </td>
     </tr>`;
   }).join('');
+
+  // Sigma (Σ) total column header
+  const sigmaHdr = `<th style="padding:6px 8px;text-align:center;vertical-align:bottom;">
+    <div style="font-size:22px;font-weight:900;color:#fff;">&#931;</div>
+  </th>`;
 
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
   <style>
     *{box-sizing:border-box;margin:0;padding:0;}
     body{font-family:Arial,sans-serif;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-    @media print{@page{margin:1cm;size:A4 landscape;}}
+    @media print{@page{margin:0.8cm;size:A4 landscape;}}
   </style></head><body>
-  <div style="max-width:1050px;margin:0 auto;padding:20px;">
-    <div style="background:#1E3A5F;border-radius:10px;padding:18px 24px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;">
-      <div>
-        <div style="font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.45);margin-bottom:3px;">CRG Toastmasters</div>
-        <div style="font-size:24px;font-weight:700;color:#fff;">Leaderboard — ${month}</div>
+  <div style="max-width:1100px;margin:0 auto;padding:16px;">
+
+    <!-- HEADER BANNER -->
+    <div style="background:#1E3A5F;border-radius:12px 12px 0 0;padding:20px 28px;display:flex;align-items:center;gap:20px;margin-bottom:0;">
+      <!-- Logo placeholder circle -->
+      <div style="width:64px;height:64px;border-radius:50%;border:3px solid #fff;background:#1E3A5F;
+        display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <div style="text-align:center;color:#fff;">
+          <div style="font-size:7px;font-weight:700;letter-spacing:0.5px;line-height:1.2;">TOASTMASTERS</div>
+          <div style="font-size:14px;">🌐</div>
+          <div style="font-size:7px;font-weight:700;letter-spacing:0.5px;line-height:1.2;">INTERNATIONAL</div>
+        </div>
       </div>
-      <div style="text-align:right;">
-        <div style="font-size:10px;color:rgba(255,255,255,.45);margin-bottom:2px;">Toastmaster of the Month</div>
-        <div style="font-size:20px;font-weight:700;color:#E6C87A;">🏆 ${sorted[0]?.name || '—'}</div>
-        <div style="font-size:11px;color:rgba(255,255,255,.5);">${sorted[0]?.pts || 0} points</div>
+      <div>
+        <div style="font-family:Arial Black,Arial,sans-serif;font-size:30px;font-weight:900;
+          color:#C8A84B;letter-spacing:2px;text-transform:uppercase;line-height:1;">LEADERBOARD — ${month.toUpperCase()}</div>
+        <div style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.75);letter-spacing:1px;margin-top:4px;">
+          CRG Toastmaster of the Month
+        </div>
       </div>
     </div>
-    <table style="width:100%;border-collapse:collapse;border:1px solid #e8e6e2;border-radius:8px;overflow:hidden;">
+
+    <!-- TABLE -->
+    <table style="width:100%;border-collapse:collapse;background:#fff;border:2px solid #1E3A5F;">
       <thead>
-        <tr style="background:#3A6BA8;">
-          <th style="padding:8px;text-align:center;color:#fff;font-size:10px;width:36px;">#</th>
-          <th style="padding:8px 12px;text-align:left;color:#fff;font-size:10px;">Member</th>
+        <tr style="background:#1E3A5F;">
+          <th style="padding:8px 12px;text-align:left;color:#fff;font-size:11px;font-weight:700;min-width:130px;"></th>
           ${dateHdrs}
-          <th style="padding:8px;text-align:center;color:#fff;font-size:10px;">Total</th>
+          ${sigmaHdr}
         </tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>
-    <div style="margin-top:12px;font-size:10px;color:#bbb;text-align:right;">Generated ${new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})}</div>
+
+    <div style="margin-top:8px;font-size:9px;color:#bbb;text-align:right;">
+      Generated ${new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})}
+    </div>
   </div>
   <script>window.onload=()=>window.print();<\/script>
   </body></html>`;
 
   const blob = new Blob([html], {type:'text/html'});
-  const win  = window.open(URL.createObjectURL(blob), '_blank');
-  setTimeout(() => URL.revokeObjectURL(blob), 8000);
+  window.open(URL.createObjectURL(blob), '_blank');
+  setTimeout(() => URL.revokeObjectURL(blob), 10000);
 }
 
 // ============================================================
