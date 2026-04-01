@@ -805,7 +805,7 @@ async function downloadPDF() {
 
   // Logo HTML — use fetched data URL if available, else fallback text
   const logoHtml = logoDataUrl
-    ? `<div style="width:80px;height:80px;flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+    ? `<div style="width:200px;height:200px;flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden;">
         <img src="${logoDataUrl}" style="max-width:80px;max-height:80px;width:auto;height:auto;display:block;" alt="CRG Logo">
        </div>`
     : `<div style="width:80px;height:80px;border-radius:50%;border:3px solid #fff;display:flex;
