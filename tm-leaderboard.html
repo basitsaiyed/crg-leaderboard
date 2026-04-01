@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRG TM — Leaderboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #ffffff;
+    --bg2:      #f8f8f6;
+    --bg3:      #f2f1ee;
+    --border:   #e8e6e2;
+    --border2:  #d0cdc7;
+    --text:     #1a1917;
+    --text2:    #5c5a56;
+    --text3:    #9c9a96;
+    --gold:     #b8860b;
+    --gold-bg:  #fef9ec;
+    --navy:     #1E3A5F;
+    --blue:     #3A6BA8;
+    --green:    #166534;
+    --green-bg: #f0fdf4;
+    --radius:   10px;
+    --radius-lg:14px;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'DM Sans',sans-serif; background:var(--bg2); color:var(--text); min-height:100vh; }
+
+  /* NAV */
+  nav { background:var(--bg); border-bottom:1px solid var(--border); padding:0 2rem; display:flex; align-items:center; justify-content:space-between; height:60px; position:sticky; top:0; z-index:100; }
+  .nav-logo { font-family:'DM Serif Display',serif; font-size:20px; letter-spacing:-0.3px; }
+  .nav-logo span { color:var(--gold); }
+  .nav-tabs { display:flex; gap:4px; }
+  .nav-tab { padding:6px 14px; border-radius:6px; font-size:14px; cursor:pointer; border:none; background:none; color:var(--text2); transition:all .15s; font-family:inherit; }
+  .nav-tab:hover { background:var(--bg3); color:var(--text); }
+  .nav-tab.active { background:var(--text); color:#fff; font-weight:500; }
+  .month-select { border:1px solid var(--border); border-radius:6px; padding:5px 10px; font-size:13px; font-family:inherit; background:var(--bg2); color:var(--text); cursor:pointer; }
+
+  /* VIEW TOGGLE */
+  .view-toggle { display:flex; background:var(--bg3); border:1px solid var(--border); border-radius:7px; padding:2px; gap:2px; }
+  .vtab { padding:4px 12px; border-radius:5px; font-size:13px; cursor:pointer; border:none; background:none; color:var(--text2); font-family:inherit; transition:all .15s; font-weight:400; }
+  .vtab:hover { color:var(--text); }
+  .vtab.active { background:var(--bg); color:var(--text); font-weight:500; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+
+  /* PAGES */
+  .page { display:none; max-width:920px; margin:0 auto; padding:2rem 1.5rem; }
+  .page.active { display:block; }
+
+  /* CHAMPION */
+  .champion-card { background:var(--navy); border-radius:var(--radius-lg); padding:1.8rem 2rem; margin-bottom:1.5rem; display:flex; align-items:center; gap:2rem; }
+  .champion-icon { width:60px; height:60px; background:rgba(255,255,255,.1); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:26px; flex-shrink:0; }
+  .champion-label { font-size:11px; font-weight:500; letter-spacing:1px; text-transform:uppercase; color:rgba(255,255,255,.45); margin-bottom:5px; }
+  .champion-name { font-family:'DM Serif Display',serif; font-size:26px; color:#fff; margin-bottom:3px; }
+  .champion-sub { font-size:13px; color:rgba(255,255,255,.5); }
+  .champion-sub strong { color:#E6C87A; font-weight:500; }
+
+  /* STATS */
+  .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:1.5rem; }
+  .stat-card { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); padding:.85rem 1.1rem; }
+  .stat-label { font-size:11px; color:var(--text3); margin-bottom:3px; }
+  .stat-value { font-size:20px; font-weight:500; }
+
+  /* SECTION HEADER */
+  .section-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:.75rem; }
+  .section-title { font-size:12px; font-weight:500; letter-spacing:.5px; text-transform:uppercase; color:var(--text3); }
+
+  /* LEADERBOARD TABLE */
+  .lb-table { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg); overflow:hidden; margin-bottom:1.5rem; }
+  .lb-row { display:grid; grid-template-columns:44px 1fr auto 60px; align-items:center; gap:1rem; padding:13px 18px; border-bottom:1px solid var(--border); transition:background .1s; }
+  .lb-row:last-child { border-bottom:none; }
+  .lb-row:hover { background:var(--bg2); }
+  .lb-row.r1 { background:#fffdf4; }
+  .lb-row.r2 { background:#fafafa; }
+  .lb-row.r3 { background:#fffbf7; }
+  .member-name { font-size:15px; font-weight:500; margin-bottom:3px; }
+  .member-sub { font-size:12px; color:var(--text3); }
+  .role-chips { display:flex; flex-wrap:wrap; gap:3px; justify-content:flex-end; }
+  .chip { font-size:10px; padding:2px 6px; border-radius:4px; font-weight:500; background:var(--bg3); color:var(--text2); border:1px solid var(--border); white-space:nowrap; }
+  .chip.tmod  { background:#e8f4fd; color:#1d5f8a; border-color:#b5d4f4; }
+  .chip.speech{ background:#f0fdf4; color:#166534; border-color:#bbf7d0; }
+  .chip.eval  { background:#f3e8ff; color:#6b21a8; border-color:#e9d5ff; }
+  .pts-num { font-size:18px; font-weight:600; text-align:right; color:var(--text); }
+  .pts-lbl { font-size:10px; color:var(--text3); text-align:right; }
+
+  /* MEETINGS */
+  .meeting-card { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg); overflow:hidden; margin-bottom:1rem; }
+  .meeting-hdr { padding:11px 18px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+  .meeting-date { font-size:14px; font-weight:500; }
+  .meeting-meta { font-size:12px; color:var(--text3); }
+  .role-grid { padding:12px 18px; display:flex; flex-wrap:wrap; gap:6px; }
+  .role-entry { display:flex; align-items:center; gap:5px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:5px 10px; font-size:12px; }
+  .role-entry .rname { font-weight:500; color:var(--navy); }
+  .role-entry .rpts { font-size:10px; color:var(--text3); }
+
+  /* ADMIN */
+  .card { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg); overflow:hidden; margin-bottom:1.5rem; }
+  .card-hdr { padding:13px 18px; border-bottom:1px solid var(--border); font-size:14px; font-weight:500; display:flex; justify-content:space-between; align-items:center; }
+  .card-body { padding:1.25rem 1.5rem; }
+  label.field-label { display:block; font-size:12px; font-weight:500; color:var(--text2); margin-bottom:5px; }
+  input.field, select.field { width:100%; border:1px solid var(--border); border-radius:6px; padding:8px 10px; font-size:13px; font-family:inherit; background:var(--bg2); color:var(--text); margin-bottom:14px; }
+  input.field:focus, select.field:focus { outline:2px solid var(--navy); outline-offset:1px; background:#fff; }
+  .hint { font-size:11px; color:var(--text3); margin-top:-10px; margin-bottom:14px; line-height:1.5; }
+  .info-box { background:#fffbf2; border:1px solid #fde68a; border-radius:8px; padding:11px 14px; margin-bottom:14px; font-size:12px; color:#6b5800; line-height:1.6; }
+  .info-box strong { font-weight:600; }
+
+  /* ROLES CONFIG */
+  .roles-hdr { display:grid; grid-template-columns:1fr 110px 80px 60px; gap:1rem; padding:8px 18px; background:var(--bg3); font-size:11px; font-weight:500; color:var(--text3); border-bottom:1px solid var(--border); }
+  .role-row { display:grid; grid-template-columns:1fr 110px 80px 60px; align-items:center; gap:1rem; padding:8px 18px; border-bottom:1px solid var(--border); }
+  .role-row:last-child { border-bottom:none; }
+  .role-row input[type="text"], .role-row input[type="number"] { border:1px solid var(--border); border-radius:5px; padding:5px 8px; font-size:12px; font-family:inherit; background:var(--bg2); color:var(--text); width:100%; }
+  .role-row input:focus { outline:2px solid var(--navy); outline-offset:1px; }
+  select.cat-sel { border:1px solid var(--border); border-radius:5px; padding:4px 6px; font-size:11px; font-family:inherit; background:var(--bg2); width:100%; }
+
+  /* BUTTONS */
+  .btn { display:inline-flex; align-items:center; gap:5px; padding:8px 14px; border-radius:7px; font-size:13px; font-weight:500; cursor:pointer; border:1px solid var(--border); background:var(--bg); color:var(--text); font-family:inherit; transition:all .12s; }
+  .btn:hover { background:var(--bg3); }
+  .btn-primary { background:var(--navy); color:#fff; border-color:var(--navy); }
+  .btn-primary:hover { opacity:.85; }
+  .btn-sm { padding:5px 10px; font-size:12px; }
+  .btn-danger { border-color:#fca5a5; color:#b91c1c; background:#fff5f5; }
+  .btn-danger:hover { background:#fee2e2; }
+
+  /* STATUS */
+  .status-bar { display:flex; align-items:center; gap:8px; padding:10px 14px; border-radius:8px; font-size:13px; margin-bottom:1.25rem; }
+  .s-loading { background:var(--bg3); color:var(--text2); }
+  .s-error   { background:#fff5f5; color:#b91c1c; border:1px solid #fca5a5; }
+  .s-success { background:var(--green-bg); color:var(--green); border:1px solid #bbf7d0; }
+  .spinner { width:14px; height:14px; border:2px solid var(--border2); border-top-color:var(--text); border-radius:50%; animation:spin .6s linear infinite; flex-shrink:0; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  .empty-state { text-align:center; padding:3rem 1rem; color:var(--text3); }
+  .empty-state h3 { font-size:15px; font-weight:500; color:var(--text2); margin-bottom:5px; }
+  .empty-state p { font-size:13px; }
+
+  @media(max-width:600px) {
+    nav { padding:0 1rem; }
+    .page { padding:1.25rem 1rem; }
+    .stats-grid { grid-template-columns:1fr 1fr; }
+    .champion-card { flex-direction:column; gap:1rem; text-align:center; }
+    .nav-tab { padding:5px 9px; font-size:12px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">CRG <span>TM</span></div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('leaderboard',this)">Leaderboard</button>
+    <button class="nav-tab" onclick="showPage('meetings',this)">Meetings</button>
+    <button class="nav-tab" onclick="showPage('admin',this)">Admin</button>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <div class="view-toggle" id="view-toggle">
+      <button class="vtab active" id="vtab-monthly" onclick="setView('monthly')">Monthly</button>
+      <button class="vtab" id="vtab-alltime" onclick="setView('alltime')">All Time</button>
+    </div>
+    <select class="month-select" id="month-select" onchange="onMonthChange()">
+      <option value="">— select month —</option>
+    </select>
+  </div>
+</nav>
+
+<!-- LEADERBOARD -->
+<div class="page active" id="page-leaderboard">
+  <div id="lb-status"></div>
+  <div id="champion-wrap" style="display:none">
+    <div class="champion-card">
+      <div class="champion-icon">🏆</div>
+      <div>
+        <div class="champion-label" id="champ-label">Toastmaster of the Month</div>
+        <div class="champion-name" id="champ-name">—</div>
+        <div class="champion-sub">Points: <strong id="champ-pts">0</strong> &nbsp;·&nbsp; <span id="champ-roles"></span></div>
+      </div>
+    </div>
+  </div>
+  <div class="stats-grid" id="stats-grid" style="display:none">
+    <div class="stat-card"><div class="stat-label">Members</div><div class="stat-value" id="st-members">0</div></div>
+    <div class="stat-card"><div class="stat-label">Meetings</div><div class="stat-value" id="st-meetings">0</div></div>
+    <div class="stat-card"><div class="stat-label">Roles filled</div><div class="stat-value" id="st-roles">0</div></div>
+    <div class="stat-card"><div class="stat-label">Top score</div><div class="stat-value" id="st-top">0</div></div>
+  </div>
+  <div class="section-header">
+    <div class="section-title">Rankings</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-sm" onclick="loadData()">↻ Refresh</button>
+      <button class="btn btn-sm btn-primary" id="btn-pdf" style="display:none" onclick="downloadPDF()">⬇ PDF</button>
+    </div>
+  </div>
+  <div class="lb-table" id="lb-table">
+    <div class="empty-state"><h3>No data loaded</h3><p>Go to Admin → paste your Sheet ID → click Load.</p></div>
+  </div>
+</div>
+
+<!-- MEETINGS -->
+<div class="page" id="page-meetings">
+  <div class="section-header"><div class="section-title">Meeting breakdown</div></div>
+  <div id="meetings-list">
+    <div class="empty-state"><h3>No meetings loaded</h3><p>Configure your sheet in Admin first.</p></div>
+  </div>
+</div>
+
+<!-- ADMIN -->
+<div class="page" id="page-admin">
+  <div class="card">
+    <div class="card-hdr">Google Sheets connection <button class="btn btn-sm btn-primary" onclick="saveAndLoad()">Save &amp; Load</button></div>
+    <div class="card-body">
+      <label class="field-label">Google Sheet ID</label>
+      <input class="field" type="text" id="cfg-sheet-id" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms">
+      <div class="hint">From your sheet URL: docs.google.com/spreadsheets/d/<strong>[ID]</strong>/edit. Sheet must be shared as "Anyone with link can view".</div>
+
+      <label class="field-label">Sheet tab name</label>
+      <input class="field" type="text" id="cfg-tab" placeholder="Sheet tab name" value="">
+      <div class="hint">This is the tab at the bottom of your Google Sheet — the one that contains all the monthly meeting data.</div>
+
+      <div class="info-box">
+        <strong>📋 How the sheet is read:</strong><br>
+        The app reads your CRG-format sheet automatically. Each month block starts with a title row ("CRG Toastmasters... [Month]"), followed by a <strong>CRG Team</strong> row, then a <strong>header row</strong> (TMOD, Prepared Speech - 1, etc.), then meeting rows where Column A = date and the rest = member names.<br><br>
+        Column headers supported: <strong>TMOD · Prepared Speech - 1/2/3 · Speech Evaluator - 1/2/3 · General Evaluator · Timer · Ah-counter · Grammarian · TTM</strong>
+      </div>
+      <div id="admin-status"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr">Role points config <button class="btn btn-sm" onclick="addRole()">+ Add</button></div>
+    <div class="roles-hdr"><span>Column header (exact)</span><span>Category</span><span>Points</span><span></span></div>
+    <div id="roles-list"></div>
+    <div style="padding:12px 18px;border-top:1px solid var(--border)">
+      <button class="btn btn-primary btn-sm" onclick="saveRoles()">Save role points</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const DEFAULT_ROLES = [
+  { col:'TMOD',                  cat:'tmod',   pts:20 },
+  { col:'Prepared Speech - 1',   cat:'speech', pts:15 },
+  { col:'Prepared Speech - 2',   cat:'speech', pts:15 },
+  { col:'Prepared Speech - 3',   cat:'speech', pts:15 },
+  { col:'Speech Evaluator - 1',  cat:'eval',   pts:12 },
+  { col:'Speech Evaluator - 2',  cat:'eval',   pts:12 },
+  { col:'Speech Evaluator - 3',  cat:'eval',   pts:12 },
+  { col:'General Evaluator',     cat:'eval',   pts:12 },
+  { col:'TTM',                   cat:'tmod',   pts:12 },
+  { col:'Grammarian',            cat:'core',   pts:10 },
+  { col:'Ah-counter',            cat:'core',   pts:8  },
+  { col:'Timer',                 cat:'core',   pts:8  },
+];
+
+// Map col header → canonical display name
+const COL_DISPLAY = {
+  'TMOD': 'TMOD',
+  'Prepared Speech - 1': 'Prepared Speech',
+  'Prepared Speech - 2': 'Prepared Speech',
+  'Prepared Speech - 3': 'Prepared Speech',
+  'Speech Evaluator - 1': 'Speech Evaluator',
+  'Speech Evaluator - 2': 'Speech Evaluator',
+  'Speech Evaluator - 3': 'Speech Evaluator',
+  'General Evaluator': 'General Evaluator',
+  'TTM': 'TTM',
+  'Grammarian': 'Grammarian',
+  'Ah-counter': 'Ah-counter',
+  'Timer': 'Timer',
+};
+
+let S = {
+  roles:   JSON.parse(localStorage.getItem('crg_roles') || 'null') || DEFAULT_ROLES,
+  sheetId: localStorage.getItem('crg_sid') || '',
+  tabName: localStorage.getItem('crg_tab') || '',
+  allData: null,   // parsed: { [monthKey]: { meetings:[], members:{} } }
+  months:  [],     // list of month keys in order
+  current: '',     // selected month key
+  view:    'monthly', // 'monthly' | 'alltime'
+};
+
+// ============================================================
+// NAV
+// ============================================================
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  if (btn) btn.classList.add('active');
+}
+
+// ============================================================
+// MONTH SELECTOR & VIEW TOGGLE
+// ============================================================
+function populateMonthSelect(months) {
+  const sel = document.getElementById('month-select');
+  sel.innerHTML = months.map((m, i) =>
+    `<option value="${m}" ${i === months.length-1 ? 'selected' : ''}>${m}</option>`
+  ).join('');
+  S.current = months[months.length - 1] || '';
+}
+
+function onMonthChange() {
+  S.current = document.getElementById('month-select').value;
+  renderCurrentMonth();
+}
+
+function setView(v) {
+  S.view = v;
+  document.getElementById('vtab-monthly').classList.toggle('active', v === 'monthly');
+  document.getElementById('vtab-alltime').classList.toggle('active', v === 'alltime');
+  document.getElementById('month-select').style.display = v === 'monthly' ? '' : 'none';
+  renderCurrentMonth();
+}
+
+// Build all-time aggregated data across all months
+function buildAllTimeData() {
+  if (!S.allData) return { meetings: [], members: {} };
+  const merged = { meetings: [], members: {} };
+  S.months.forEach(mk => {
+    const md = S.allData[mk];
+    merged.meetings.push(...md.meetings);
+    Object.entries(md.members).forEach(([name, d]) => {
+      if (!merged.members[name]) merged.members[name] = { pts: 0, roles: [], meetingDates: new Set() };
+      merged.members[name].pts += d.pts;
+      merged.members[name].roles.push(...d.roles);
+      d.meetingDates.forEach(dt => merged.members[name].meetingDates.add(mk + ':' + dt));
+    });
+  });
+  return merged;
+}
+
+// ============================================================
+// LOAD & FETCH
+// ============================================================
+
+// Fetch sheet as CSV via a JSONP-style gviz request (avoids CORS block)
+function fetchSheetCSV(sheetId, tabName) {
+  return new Promise((resolve, reject) => {
+    const cbName = '_gvizCb_' + Date.now();
+    const script = document.createElement('script');
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('Request timed out. Check Sheet ID and sharing settings.'));
+    }, 15000);
+
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+
+    window[cbName] = function(resp) {
+      cleanup();
+      try {
+        const table = resp.table;
+        if (!table || !table.rows) { reject(new Error('No data returned. Check Sheet ID and tab name.')); return; }
+
+        // Reconstruct CSV from gviz table response
+        const cols = table.cols.map(c => (c.label || '').trim());
+        const csvRows = [cols.join(',')];
+        table.rows.forEach(row => {
+          const cells = cols.map((_, ci) => {
+            const cell = row.c && row.c[ci];
+            if (!cell || cell.v === null || cell.v === undefined) return '';
+            // Use formatted value if available, else raw
+            const val = (cell.f !== undefined && cell.f !== null) ? cell.f : String(cell.v);
+            // Quote if contains comma or newline
+            return (val.includes(',') || val.includes('\n') || val.includes('"'))
+              ? '"' + val.replace(/"/g, '""') + '"'
+              : val;
+          });
+          csvRows.push(cells.join(','));
+        });
+        resolve(csvRows.join('\n'));
+      } catch(e) {
+        reject(new Error('Failed to parse sheet data: ' + e.message));
+      }
+    };
+
+    const url = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(sheetId)}/gviz/tq?tqx=out:json;responseHandler:${cbName}&sheet=${encodeURIComponent(tabName)}`;
+    script.src = url;
+    script.onerror = () => { cleanup(); reject(new Error('Failed to load sheet. Make sure it is shared as "Anyone with link can view".')); };
+    document.head.appendChild(script);
+  });
+}
+
+async function loadData() {
+  if (!S.sheetId) { setStatus('lb-status', 'Configure your Google Sheet in the Admin tab first.', 'error'); return; }
+  setStatus('lb-status', 'Loading…', 'loading');
+  try {
+    const csv = await fetchSheetCSV(S.sheetId, S.tabName);
+    if (!csv || csv.length < 20) throw new Error('Sheet not public or wrong Sheet ID.');
+    // Debug: log first 20 lines to console so we can see the raw structure
+    console.log('[CRG Debug] First 20 CSV lines:\n' + csv.split('\n').slice(0,20).join('\n'));
+    S.allData = parseSheet(csv);
+    S.months  = Object.keys(S.allData);
+    if (S.months.length === 0) throw new Error('No monthly data blocks found. Check tab name and sheet format.');
+    populateMonthSelect(S.months);
+    renderCurrentMonth();
+    setStatus('lb-status', '', '');
+    setStatus('admin-status', `Loaded ${S.months.length} month(s) successfully.`, 'success');
+  } catch(e) {
+    setStatus('lb-status', e.message, 'error');
+    setStatus('admin-status', e.message, 'error');
+  }
+}
+
+function saveAndLoad() {
+  S.sheetId = document.getElementById('cfg-sheet-id').value.trim();
+  S.tabName = document.getElementById('cfg-tab').value.trim() || 'Sheet1';
+  localStorage.setItem('crg_sid', S.sheetId);
+  localStorage.setItem('crg_tab', S.tabName);
+  if (!S.sheetId) { setStatus('admin-status', 'Please enter a Sheet ID.', 'error'); return; }
+  loadData();
+}
+
+// ============================================================
+// CSV PARSER
+// ============================================================
+function parseCSVRow(line) {
+  const out = []; let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') { inQ = !inQ; continue; }
+    if (c === ',' && !inQ) { out.push(cur.trim()); cur = ''; continue; }
+    cur += c;
+  }
+  out.push(cur.trim());
+  return out;
+}
+
+// ============================================================
+// SHEET PARSER — handles real CRG multi-month format
+// ============================================================
+function parseSheet(csv) {
+  const lines = csv.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  const allMonths = {};
+
+  let currentMonth = null;
+  let colHeaders   = null;
+  let i = 0;
+
+  // Build role lookup: col header (lowercase) -> { pts, cat, display }
+  const roleLookup = {};
+  S.roles.forEach(r => {
+    roleLookup[r.col.toLowerCase().trim()] = { pts: r.pts, cat: r.cat, display: COL_DISPLAY[r.col] || r.col };
+  });
+
+  const MONTH_NAMES = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+
+  // Extract "Month YYYY" from a string that may contain newlines or extra text
+  function extractMonthYear(str) {
+    // Normalise: replace literal \n sequences and actual newlines with space
+    const s = str.replace(/\\n/g, ' ').replace(/\n/g, ' ');
+    // Try to match "Month YYYY" or just "Month"
+    const match = s.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\s*(\d{4})?\b/i);
+    if (!match) return null;
+    const month = match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase();
+    return match[2] ? `${month} ${match[2]}` : month;
+  }
+
+  // Parse a date cell like "01/02/2026 (#43)" or "8th June 2025" → { label, month, year }
+  // Returns cleaned display label (no #nn) and the month name it belongs to
+  function parseDateCell(raw) {
+    // Strip meeting number annotations like (#43), (#36), (TLTP), etc.
+    const label = raw.replace(/\s*\(#?\w+\)/g, '').replace(/\s*\([^)]*\)/g, '').trim();
+
+    // Try DD/MM/YYYY format
+    const slashMatch = label.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (slashMatch) {
+      const month = MONTH_NAMES[parseInt(slashMatch[2], 10) - 1];
+      const year  = slashMatch[3];
+      return { label, month: month ? (month.charAt(0).toUpperCase() + month.slice(1) + ' ' + year) : null };
+    }
+
+    // Try "Nth Month YYYY" format like "8th June 2025"
+    const wordMatch = label.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\s*(\d{4})?\b/i);
+    if (wordMatch) {
+      const month = wordMatch[1].charAt(0).toUpperCase() + wordMatch[1].slice(1).toLowerCase();
+      return { label, month: wordMatch[2] ? `${month} ${wordMatch[2]}` : month };
+    }
+
+    return { label, month: null };
+  }
+
+  while (i < lines.length) {
+    const row = parseCSVRow(lines[i]);
+    const allCells = row.map(c => (c || '').replace(/\n/g,' ').trim());
+    const firstCell = allCells[0] || '';
+    const fullRowText = allCells.join(' ');
+
+    // Detect month title row
+    const isMonthTitle =
+      fullRowText.toLowerCase().includes('monthly tracking sheet') ||
+      fullRowText.toLowerCase().includes('crg toastmasters');
+
+    if (isMonthTitle) {
+      let monthName = null;
+      for (const cell of allCells) {
+        monthName = extractMonthYear(cell);
+        if (monthName) break;
+      }
+      if (!monthName) monthName = 'Unknown';
+      currentMonth = monthName;
+      if (!allMonths[currentMonth]) allMonths[currentMonth] = { meetings: [], members: {} };
+      colHeaders = null;
+      i++; continue;
+    }
+
+    // Detect header row: any cell equals "TMOD"
+    if (allCells.some(c => c.toLowerCase() === 'tmod')) {
+      colHeaders = allCells;
+      i++; continue;
+    }
+
+    // Skip "CRG Team" / criteria / empty-role rows
+    if (firstCell === 'CRG Team' || firstCell.toLowerCase().includes('criteria')) {
+      i++; continue;
+    }
+
+    // Meeting data row: needs headers, a month context, and a date-like first cell
+    if (currentMonth && colHeaders && firstCell && /\d/.test(firstCell)) {
+      const parsed = parseDateCell(firstCell);
+      const dateLabel = parsed.label;
+
+      // If the date's month doesn't match currentMonth, re-assign to correct month
+      // (handles cases like Feb dates appearing under a January header due to sheet layout)
+      let targetMonth = currentMonth;
+      if (parsed.month && parsed.month !== currentMonth) {
+        targetMonth = parsed.month;
+        if (!allMonths[targetMonth]) allMonths[targetMonth] = { meetings: [], members: {} };
+      }
+
+      const month = allMonths[targetMonth];
+      const meetingEntries = [];
+
+      for (let c = 1; c < colHeaders.length; c++) {
+        const colHeader = colHeaders[c];
+        if (!colHeader) continue;
+        const roleDef = roleLookup[colHeader.toLowerCase().trim()];
+        if (!roleDef) continue;
+
+        const cellVal = (row[c] || '').trim();
+        if (!cellVal || cellVal.toLowerCase() === 'na' || cellVal === '-') continue;
+
+        const rawNames = cellVal.includes(',') ? cellVal.split(',') : [cellVal];
+        rawNames.forEach(raw => {
+          let name = raw.trim();
+          name = name.replace(/\s*\(.*?\)/g, '').trim();        // remove (...)
+          name = name.replace(/\s+L\d+P\d+$/i, '').trim();      // remove L1P2 etc
+          name = name.replace(/\s*-\s*[A-Za-z\s]+session.*/i, '').trim(); // remove "- Education Session"
+          if (!name || name.toLowerCase() === 'na' || name === 'TCoS') return;
+
+          meetingEntries.push({ role: colHeader, display: roleDef.display, pts: roleDef.pts, cat: roleDef.cat, name });
+
+          if (!month.members[name]) month.members[name] = { pts: 0, roles: [], meetingDates: new Set() };
+          month.members[name].pts += roleDef.pts;
+          month.members[name].roles.push({ col: colHeader, display: roleDef.display, pts: roleDef.pts, cat: roleDef.cat, date: dateLabel });
+          month.members[name].meetingDates.add(dateLabel);
+        });
+      }
+
+      if (meetingEntries.length > 0) {
+        month.meetings.push({ date: dateLabel, entries: meetingEntries });
+      }
+    }
+
+    i++;
+  }
+
+  return allMonths;
+}
+
+// ============================================================
+// RENDER
+// ============================================================
+function renderCurrentMonth() {
+  if (!S.allData) return;
+  if (S.view === 'alltime') {
+    const data = buildAllTimeData();
+    document.getElementById('champ-label').textContent = 'All-Time Leader';
+    renderLeaderboard(data, 'All Time');
+    renderMeetings(data);
+  } else {
+    if (!S.current) return;
+    const data = S.allData[S.current];
+    if (!data) return;
+    document.getElementById('champ-label').textContent = 'Toastmaster of the Month';
+    renderLeaderboard(data, S.current);
+    renderMeetings(data);
+  }
+}
+
+function renderLeaderboard(data, label) {
+  const sorted = Object.entries(data.members)
+    .map(([name, d]) => ({ name, pts: d.pts, roles: d.roles, meetings: d.meetingDates.size }))
+    .sort((a, b) => b.pts - a.pts);
+
+  S._sorted = sorted;
+  S._renderLabel = label || S.current;
+
+  // Update section title
+  const sectionTitle = document.querySelector('#page-leaderboard .section-title');
+  if (sectionTitle) sectionTitle.textContent = S.view === 'alltime' ? 'All-Time Rankings' : `Rankings — ${label || ''}`;
+
+  if (sorted.length === 0) {
+    document.getElementById('lb-table').innerHTML = '<div class="empty-state"><h3>No members found</h3><p>Check sheet format — ensure column headers match exactly (TMOD, TTM, Ah-counter, etc.).</p></div>';
+    document.getElementById('champion-wrap').style.display = 'none';
+    document.getElementById('stats-grid').style.display = 'none';
+    document.getElementById('btn-pdf').style.display = 'none';
+    return;
+  }
+
+  const top = sorted[0];
+  document.getElementById('champ-name').textContent = top.name;
+  document.getElementById('champ-pts').textContent = top.pts;
+  document.getElementById('champ-roles').textContent = `${top.roles.length} role${top.roles.length !== 1 ? 's' : ''} in ${top.meetings} meeting${top.meetings !== 1 ? 's' : ''}`;
+  document.getElementById('champion-wrap').style.display = '';
+  document.getElementById('stats-grid').style.display = '';
+  document.getElementById('btn-pdf').style.display = '';
+
+  document.getElementById('st-members').textContent = sorted.length;
+  document.getElementById('st-meetings').textContent = data.meetings.length;
+  document.getElementById('st-roles').textContent = sorted.reduce((s, m) => s + m.roles.length, 0);
+  document.getElementById('st-top').textContent = top.pts;
+
+  const medals = ['🥇','🥈','🥉'];
+  const rowCls = ['r1','r2','r3'];
+
+  document.getElementById('lb-table').innerHTML = sorted.map((m, i) => {
+    // Group roles by display name
+    const freq = {};
+    m.roles.forEach(r => {
+      const k = r.display;
+      if (!freq[k]) freq[k] = { count: 0, cat: r.cat };
+      freq[k].count++;
+    });
+    const chips = Object.entries(freq).slice(0, 5).map(([name, {count, cat}]) =>
+      `<span class="chip ${cat}">${name}${count > 1 ? ' ×' + count : ''}</span>`
+    ).join('');
+
+    const rankEl = i < 3
+      ? `<span style="font-size:20px">${medals[i]}</span>`
+      : `<span style="font-size:14px;font-weight:500;color:var(--text3)">${i+1}</span>`;
+
+    return `<div class="lb-row ${rowCls[i] || ''}">
+      <div style="text-align:center">${rankEl}</div>
+      <div>
+        <div class="member-name">${m.name}</div>
+        <div class="member-sub">${m.meetings} meeting${m.meetings!==1?'s':''} · ${m.roles.length} role${m.roles.length!==1?'s':''}</div>
+      </div>
+      <div class="role-chips">${chips}</div>
+      <div>
+        <div class="pts-num">${m.pts}</div>
+        <div class="pts-lbl">pts</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderMeetings(data) {
+  if (data.meetings.length === 0) {
+    document.getElementById('meetings-list').innerHTML = '<div class="empty-state"><h3>No meetings</h3><p>No meeting data found for this month.</p></div>';
+    return;
+  }
+  document.getElementById('meetings-list').innerHTML = data.meetings.slice().reverse().map(m => {
+    const entries = m.entries.map(e =>
+      `<div class="role-entry">
+        <span class="chip ${e.cat}">${e.display}</span>
+        <span class="rname">${e.name}</span>
+        <span class="rpts">+${e.pts}</span>
+      </div>`
+    ).join('');
+    return `<div class="meeting-card">
+      <div class="meeting-hdr">
+        <div class="meeting-date">📅 ${m.date}</div>
+        <div class="meeting-meta">${m.entries.length} roles filled</div>
+      </div>
+      <div class="role-grid">${entries}</div>
+    </div>`;
+  }).join('');
+}
+
+// ============================================================
+// PDF DOWNLOAD
+// ============================================================
+function downloadPDF() {
+  const sorted = S._sorted;
+  if (!sorted || !sorted.length) return;
+  const month = S.current || 'Leaderboard';
+  const data = S.allData[S.current];
+
+  const dates = [];
+  data.meetings.forEach(m => { if (!dates.includes(m.date)) dates.push(m.date); });
+
+  const medals = ['🥇','🥈','🥉'];
+  const catClr = {
+    tmod:  {bg:'#E8F4FD', color:'#1D5F8A', border:'#B5D4F4'},
+    speech:{bg:'#F0FDF4', color:'#166534', border:'#BBF7D0'},
+    eval:  {bg:'#F3E8FF', color:'#6B21A8', border:'#E9D5FF'},
+    core:  {bg:'#F2F1EE', color:'#5C5A56', border:'#D0CDC7'},
+  };
+
+  const dateHdrs = dates.map(d => `<th style="padding:8px 6px;font-size:10px;color:#fff;text-align:center;min-width:85px;">${d}</th>`).join('');
+
+  const rows = sorted.map((m, i) => {
+    const freq = {};
+    m.roles.forEach(r => { freq[r.display] = freq[r.display] || {count:0,cat:r.cat}; freq[r.display].count++; });
+    const chips = Object.entries(freq).map(([name,{count,cat}]) => {
+      const c = catClr[cat] || catClr.core;
+      return `<span style="display:inline-block;background:${c.bg};color:${c.color};border:1px solid ${c.border};border-radius:3px;padding:1px 5px;font-size:9px;font-weight:600;margin:1px;">${name}${count>1?' ×'+count:''}</span>`;
+    }).join('');
+
+    const dateCells = dates.map(date => {
+      const dayRoles = m.roles.filter(r => r.date === date);
+      if (!dayRoles.length) return `<td style="text-align:center;color:#ccc;font-size:11px;padding:6px;">—</td>`;
+      const content = dayRoles.map(r => {
+        const c = catClr[r.cat] || catClr.core;
+        return `<div style="background:${c.bg};color:${c.color};border-radius:3px;padding:2px 5px;font-size:8px;font-weight:600;margin:1px;display:inline-block;">${r.display} +${r.pts}</div>`;
+      }).join('');
+      return `<td style="text-align:center;padding:4px;">${content}</td>`;
+    }).join('');
+
+    const bg = i===0?'#FFFDF4':i%2===0?'#FAFAFA':'#FFFFFF';
+    const rank = i<3 ? medals[i] : `<span style="font-size:12px;font-weight:600;color:#999">${i+1}</span>`;
+    return `<tr style="background:${bg};border-bottom:1px solid #e8e6e2;">
+      <td style="padding:8px;text-align:center;font-size:${i<3?'18':'12'}px;">${rank}</td>
+      <td style="padding:8px 12px;">
+        <div style="font-weight:600;font-size:${i===0?'14':'12'}px;color:#1E3A5F;">${m.name}</div>
+        <div style="margin-top:3px;">${chips}</div>
+      </td>
+      ${dateCells}
+      <td style="text-align:center;padding:8px;">
+        <div style="font-size:${i===0?'20':'16'}px;font-weight:700;color:${i===0?'#8B1A1A':'#1E3A5F'};">${m.pts}</div>
+        <div style="font-size:9px;color:#999;">pts</div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:Arial,sans-serif;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    @media print{@page{margin:1cm;size:A4 landscape;}}
+  </style></head><body>
+  <div style="max-width:1050px;margin:0 auto;padding:20px;">
+    <div style="background:#1E3A5F;border-radius:10px;padding:18px 24px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.45);margin-bottom:3px;">CRG Toastmasters</div>
+        <div style="font-size:24px;font-weight:700;color:#fff;">Leaderboard — ${month}</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:10px;color:rgba(255,255,255,.45);margin-bottom:2px;">Toastmaster of the Month</div>
+        <div style="font-size:20px;font-weight:700;color:#E6C87A;">🏆 ${sorted[0]?.name || '—'}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.5);">${sorted[0]?.pts || 0} points</div>
+      </div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;border:1px solid #e8e6e2;border-radius:8px;overflow:hidden;">
+      <thead>
+        <tr style="background:#3A6BA8;">
+          <th style="padding:8px;text-align:center;color:#fff;font-size:10px;width:36px;">#</th>
+          <th style="padding:8px 12px;text-align:left;color:#fff;font-size:10px;">Member</th>
+          ${dateHdrs}
+          <th style="padding:8px;text-align:center;color:#fff;font-size:10px;">Total</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div style="margin-top:12px;font-size:10px;color:#bbb;text-align:right;">Generated ${new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})}</div>
+  </div>
+  <script>window.onload=()=>window.print();<\/script>
+  </body></html>`;
+
+  const blob = new Blob([html], {type:'text/html'});
+  const win  = window.open(URL.createObjectURL(blob), '_blank');
+  setTimeout(() => URL.revokeObjectURL(blob), 8000);
+}
+
+// ============================================================
+// ADMIN — ROLES
+// ============================================================
+function renderRolesList() {
+  document.getElementById('roles-list').innerHTML = S.roles.map((r, i) => `
+    <div class="role-row">
+      <input type="text" value="${r.col}" onchange="S.roles[${i}].col=this.value">
+      <select class="cat-sel" onchange="S.roles[${i}].cat=this.value">
+        <option value="tmod"   ${r.cat==='tmod'  ?'selected':''}>Meeting lead</option>
+        <option value="speech" ${r.cat==='speech'?'selected':''}>Speech</option>
+        <option value="eval"   ${r.cat==='eval'  ?'selected':''}>Evaluator</option>
+        <option value="core"   ${r.cat==='core'  ?'selected':''}>Core role</option>
+      </select>
+      <input type="number" value="${r.pts}" min="0" max="99" onchange="S.roles[${i}].pts=+this.value">
+      <button class="btn btn-danger btn-sm" onclick="removeRole(${i})">✕</button>
+    </div>`).join('');
+}
+
+function addRole() {
+  S.roles.push({col:'New Role', cat:'core', pts:5});
+  renderRolesList();
+}
+function removeRole(i) {
+  S.roles.splice(i, 1);
+  renderRolesList();
+}
+function saveRoles() {
+  localStorage.setItem('crg_roles', JSON.stringify(S.roles));
+  setStatus('admin-status', 'Role points saved. Reload data to apply.', 'success');
+}
+
+// ============================================================
+// STATUS
+// ============================================================
+function setStatus(id, msg, type) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (!msg) { el.innerHTML = ''; return; }
+  const cls = {loading:'s-loading', error:'s-error', success:'s-success'}[type] || 's-loading';
+  el.innerHTML = `<div class="status-bar ${cls}">${type==='loading'?'<div class="spinner"></div>':''} ${msg}</div>`;
+}
+
+// ============================================================
+// INIT
+// ============================================================
+function init() {
+  renderRolesList();
+  document.getElementById('cfg-sheet-id').value = S.sheetId;
+  document.getElementById('cfg-tab').value      = S.tabName;
+  if (S.sheetId) loadData();
+}
+
+init();
+</script>
+</body>
+</html>
