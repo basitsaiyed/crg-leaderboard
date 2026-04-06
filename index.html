@@ -122,7 +122,7 @@
   .btn-danger:hover { background:#fee2e2; }
 
   /* STATUS */
-  .status-bar { display:flex; align-items:center; gap:8px; padding:10px 14px; border-radius:8px; font-size:13px; margin-bottom:1.25rem; }
+  .status-bar { display:flex; align-items:center; justify-content:center; gap:8px; padding:10px 14px; border-radius:8px; font-size:13px; margin-bottom:1.25rem; }
   .s-loading { background:var(--bg3); color:var(--text2); }
   .s-error   { background:#fff5f5; color:#b91c1c; border:1px solid #fca5a5; }
   .s-success { background:var(--green-bg); color:var(--green); border:1px solid #bbf7d0; }
@@ -584,8 +584,12 @@ function parseSheet(csv) {
 
           meetingEntries.push({ role: colHeader, display: roleDef.display, pts: roleDef.pts, cat: roleDef.cat, name });
 
-          if (!month.members[name]) month.members[name] = { pts: 0, roles: [], meetingDates: new Set() };
-          month.members[name].pts += roleDef.pts;
+          if (!month.members[name]) month.members[name] = { pts: 0, roles: [], meetingDates: new Set(), scoredRoles: new Set() };
+          // Only count points once per unique display role per member
+          if (!month.members[name].scoredRoles.has(roleDef.display)) {
+            month.members[name].pts += roleDef.pts;
+            month.members[name].scoredRoles.add(roleDef.display);
+          }
           month.members[name].roles.push({ col: colHeader, display: roleDef.display, pts: roleDef.pts, cat: roleDef.cat, date: dateLabel });
           month.members[name].meetingDates.add(dateLabel);
         });
