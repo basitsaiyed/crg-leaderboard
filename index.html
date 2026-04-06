@@ -31,7 +31,7 @@
   nav { background:var(--bg); border-bottom:1px solid var(--border); padding:0 2rem; display:flex; align-items:center; justify-content:space-between; height:60px; position:sticky; top:0; z-index:100; }
   .nav-logo { font-family:'DM Serif Display',serif; font-size:20px; letter-spacing:-0.3px; }
   .nav-logo span { color:var(--gold); }
-  .nav-tabs { display:flex; gap:4px; }
+  .nav-tabs { display:flex; gap:4px; position:absolute; left:50%; transform:translateX(-50%); }
   .nav-tab { padding:6px 14px; border-radius:6px; font-size:14px; cursor:pointer; border:none; background:none; color:var(--text2); transition:all .15s; font-family:inherit; }
   .nav-tab:hover { background:var(--bg3); color:var(--text); }
   .nav-tab.active { background:var(--text); color:#fff; font-weight:500; }
@@ -133,6 +133,21 @@
   .empty-state h3 { font-size:15px; font-weight:500; color:var(--text2); margin-bottom:5px; }
   .empty-state p { font-size:13px; }
 
+  /* LOCK BUTTON */
+  .nav-lock { background:none; border:none; cursor:pointer; padding:4px 6px; border-radius:6px; color:var(--text3); font-size:15px; line-height:1; transition:all .15s; }
+  .nav-lock:hover { background:var(--bg3); color:var(--text); }
+
+  /* PASSWORD MODAL */
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:999; align-items:center; justify-content:center; }
+  .modal-overlay.open { display:flex; }
+  .modal-box { background:var(--bg); border-radius:var(--radius-lg); padding:1.75rem; width:320px; box-shadow:0 8px 32px rgba(0,0,0,.18); }
+  .modal-title { font-size:15px; font-weight:600; margin-bottom:4px; }
+  .modal-sub { font-size:12px; color:var(--text3); margin-bottom:1.1rem; }
+  .modal-input { width:100%; border:1px solid var(--border); border-radius:6px; padding:8px 10px; font-size:13px; font-family:inherit; background:var(--bg2); color:var(--text); margin-bottom:10px; }
+  .modal-input:focus { outline:2px solid var(--navy); outline-offset:1px; background:#fff; }
+  .modal-err { font-size:12px; color:#b91c1c; margin-bottom:10px; display:none; }
+  .modal-actions { display:flex; gap:8px; justify-content:flex-end; }
+
   @media(max-width:600px) {
     nav { padding:0 1rem; }
     .page { padding:1.25rem 1rem; }
@@ -149,7 +164,7 @@
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="showPage('leaderboard',this)">Leaderboard</button>
     <button class="nav-tab" onclick="showPage('meetings',this)">Meetings</button>
-    <button class="nav-tab" onclick="showPage('admin',this)">Admin</button>
+    <button class="nav-tab" id="tab-admin" style="display:none" onclick="showPage('admin',this)">Admin</button>
   </div>
   <div style="display:flex;align-items:center;gap:8px">
     <div class="view-toggle" id="view-toggle">
@@ -159,8 +174,24 @@
     <select class="month-select" id="month-select" onchange="onMonthChange()">
       <option value="">— select month —</option>
     </select>
+    <button class="nav-lock" id="lock-btn" onclick="toggleLock()" title="Admin">🔒</button>
   </div>
 </nav>
+
+<!-- PASSWORD MODAL -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-title">Admin access</div>
+    <div class="modal-sub">Enter the admin password to continue.</div>
+    <input class="modal-input" type="password" id="modal-pass" placeholder="Password"
+      onkeydown="if(event.key==='Enter')submitPass()">
+    <div class="modal-err" id="modal-err">Incorrect password.</div>
+    <div class="modal-actions">
+      <button class="btn btn-sm" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-sm btn-primary" onclick="submitPass()">Unlock</button>
+    </div>
+  </div>
+</div>
 
 <!-- LEADERBOARD -->
 <div class="page active" id="page-leaderboard">
@@ -926,9 +957,65 @@ function setStatus(id, msg, type) {
 }
 
 // ============================================================
+// ADMIN AUTH
+// ============================================================
+const ADMIN_HASH = '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9';
+
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+function setAdminUnlocked(unlocked) {
+  const tab = document.getElementById('tab-admin');
+  const btn = document.getElementById('lock-btn');
+  tab.style.display = unlocked ? '' : 'none';
+  btn.textContent = unlocked ? '🔓' : '🔒';
+  btn.title = unlocked ? 'Lock admin' : 'Admin';
+  if (unlocked) localStorage.setItem('crg_admin', '1');
+  else { localStorage.removeItem('crg_admin'); showPage('leaderboard', document.querySelector('.nav-tab')); }
+}
+
+function toggleLock() {
+  if (localStorage.getItem('crg_admin')) {
+    setAdminUnlocked(false);
+  } else {
+    document.getElementById('modal-overlay').classList.add('open');
+    document.getElementById('modal-pass').value = '';
+    document.getElementById('modal-err').style.display = 'none';
+    setTimeout(() => document.getElementById('modal-pass').focus(), 50);
+  }
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+async function submitPass() {
+  const val = document.getElementById('modal-pass').value;
+  const hash = await sha256(val);
+  if (hash === ADMIN_HASH) {
+    setAdminUnlocked(true);
+    closeModal();
+  } else {
+    document.getElementById('modal-err').style.display = 'block';
+    document.getElementById('modal-pass').value = '';
+    document.getElementById('modal-pass').focus();
+  }
+}
+
+// close modal on overlay click
+document.getElementById('modal-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+// ============================================================
 // INIT
 // ============================================================
 function init() {
+  // Restore admin unlock state
+  if (localStorage.getItem('crg_admin')) setAdminUnlocked(true);
+
   renderRolesList();
   document.getElementById('cfg-sheet-id').value = S.sheetId;
   document.getElementById('cfg-tab').value      = S.tabName;
