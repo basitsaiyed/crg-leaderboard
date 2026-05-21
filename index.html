@@ -354,11 +354,12 @@ function setView(v) {
 
 // Build all-time aggregated data across all months
 function buildAllTimeData() {
-  if (!S.allData) return { meetings: [], members: {} };
-  const merged = { meetings: [], members: {} };
+  if (!S.allData) return { meetings: [], members: {}, events: [] };
+  const merged = { meetings: [], members: {}, events: [] };
   S.months.forEach(mk => {
     const md = S.allData[mk];
     merged.meetings.push(...md.meetings);
+    if (md.events) merged.events.push(...md.events);
     Object.entries(md.members).forEach(([name, d]) => {
       if (!merged.members[name]) merged.members[name] = { pts: 0, roles: [], meetingDates: new Set() };
       merged.members[name].pts += d.pts;
@@ -499,28 +500,36 @@ function parseSheet(csv) {
     return match[2] ? `${month} ${match[2]}` : month;
   }
 
-  // Parse a date cell like "01/02/2026 (#43)" or "8th June 2025" → { label, month, year }
-  // Returns cleaned display label (no #nn) and the month name it belongs to
+  // Parse a date cell like "01/02/2026 (#43)" or "8th June 2025"
+  // Returns { label, month, meetingNum }
+  //   label      — display string, date only (no bracket annotation)
+  //   month      — "Month YYYY" string for grouping, or null
+  //   meetingNum — numeric meeting number if (#NN) present, else null
+  //                rows WITHOUT a meeting number are treated as events, not meetings
   function parseDateCell(raw) {
-    // Strip meeting number annotations like (#43), (#36), (TLTP), etc.
-    const label = raw.replace(/\s*\(#?\w+\)/g, '').replace(/\s*\([^)]*\)/g, '').trim();
+    // Extract meeting number from (#NN) — must be purely numeric digits
+    const numMatch = raw.match(/\(#(\d+)\)/);
+    const meetingNum = numMatch ? parseInt(numMatch[1], 10) : null;
+
+    // Strip ALL bracket annotations to get a clean date label
+    const label = raw.replace(/\s*\([^)]*\)/g, '').trim();
 
     // Try DD/MM/YYYY format
     const slashMatch = label.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
     if (slashMatch) {
       const month = MONTH_NAMES[parseInt(slashMatch[2], 10) - 1];
       const year  = slashMatch[3];
-      return { label, month: month ? (month.charAt(0).toUpperCase() + month.slice(1) + ' ' + year) : null };
+      return { label, month: month ? (month.charAt(0).toUpperCase() + month.slice(1) + ' ' + year) : null, meetingNum };
     }
 
     // Try "Nth Month YYYY" format like "8th June 2025"
     const wordMatch = label.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\s*(\d{4})?\b/i);
     if (wordMatch) {
       const month = wordMatch[1].charAt(0).toUpperCase() + wordMatch[1].slice(1).toLowerCase();
-      return { label, month: wordMatch[2] ? `${month} ${wordMatch[2]}` : month };
+      return { label, month: wordMatch[2] ? `${month} ${wordMatch[2]}` : month, meetingNum };
     }
 
-    return { label, month: null };
+    return { label, month: null, meetingNum };
   }
 
   while (i < lines.length) {
@@ -542,7 +551,7 @@ function parseSheet(csv) {
       }
       if (!monthName) monthName = 'Unknown';
       currentMonth = monthName;
-      if (!allMonths[currentMonth]) allMonths[currentMonth] = { meetings: [], members: {} };
+      if (!allMonths[currentMonth]) allMonths[currentMonth] = { meetings: [], members: {}, events: [] };
       colHeaders = null;
       i++; continue;
     }
@@ -561,17 +570,43 @@ function parseSheet(csv) {
     // Meeting data row: needs headers, a month context, and a date-like first cell
     if (currentMonth && colHeaders && firstCell && /\d/.test(firstCell)) {
       const parsed = parseDateCell(firstCell);
-      const dateLabel = parsed.label;
+
+      // Build display label — include meeting number if present
+      const dateLabel = parsed.meetingNum !== null
+        ? `${parsed.label} (#${parsed.meetingNum})`
+        : parsed.label;
 
       // If the date's month doesn't match currentMonth, re-assign to correct month
-      // (handles cases like Feb dates appearing under a January header due to sheet layout)
       let targetMonth = currentMonth;
       if (parsed.month && parsed.month !== currentMonth) {
         targetMonth = parsed.month;
-        if (!allMonths[targetMonth]) allMonths[targetMonth] = { meetings: [], members: {} };
+        if (!allMonths[targetMonth]) allMonths[targetMonth] = { meetings: [], members: {}, events: [] };
       }
 
-      const month = allMonths[targetMonth];
+      const monthData = allMonths[targetMonth];
+
+      // ── EVENT ROW (no meeting number) ──────────────────────────────────────
+      // Rows without (#NN) are special events (Area Conference, Division Conference, etc.)
+      // They appear in the Meetings tab as "Event" cards but do NOT affect the leaderboard.
+      if (parsed.meetingNum === null) {
+        // Collect any non-empty cell values as the event name(s)
+        const eventNames = [];
+        for (let c = 1; c < colHeaders.length; c++) {
+          const v = (row[c] || '').trim();
+          if (v && v.toLowerCase() !== 'na' && v !== '-') {
+            // Clean up name-like annotations
+            const clean = v.replace(/\s*\(.*?\)/g, '').replace(/\s+L\d+P\d+$/i, '').trim();
+            if (clean && !eventNames.includes(clean)) eventNames.push(clean);
+          }
+        }
+        // Use the first non-empty value as the event name, or fall back to the date label
+        const eventName = eventNames[0] || dateLabel;
+        if (!monthData.events) monthData.events = [];
+        monthData.events.push({ date: parsed.label, name: eventName });
+        i++; continue;
+      }
+
+      // ── REGULAR MEETING ROW ────────────────────────────────────────────────
       const meetingEntries = [];
 
       for (let c = 1; c < colHeaders.length; c++) {
@@ -593,19 +628,19 @@ function parseSheet(csv) {
 
           meetingEntries.push({ role: colHeader, display: roleDef.display, pts: roleDef.pts, cat: roleDef.cat, name });
 
-          if (!month.members[name]) month.members[name] = { pts: 0, roles: [], meetingDates: new Set(), scoredRoles: new Set() };
+          if (!monthData.members[name]) monthData.members[name] = { pts: 0, roles: [], meetingDates: new Set(), scoredRoles: new Set() };
           // Only count points once per unique display role per member
-          if (!month.members[name].scoredRoles.has(roleDef.display)) {
-            month.members[name].pts += roleDef.pts;
-            month.members[name].scoredRoles.add(roleDef.display);
+          if (!monthData.members[name].scoredRoles.has(roleDef.display)) {
+            monthData.members[name].pts += roleDef.pts;
+            monthData.members[name].scoredRoles.add(roleDef.display);
           }
-          month.members[name].roles.push({ col: colHeader, display: roleDef.display, pts: roleDef.pts, cat: roleDef.cat, date: dateLabel });
-          month.members[name].meetingDates.add(dateLabel);
+          monthData.members[name].roles.push({ col: colHeader, display: roleDef.display, pts: roleDef.pts, cat: roleDef.cat, date: dateLabel });
+          monthData.members[name].meetingDates.add(dateLabel);
         });
       }
 
       if (meetingEntries.length > 0) {
-        month.meetings.push({ date: dateLabel, entries: meetingEntries });
+        monthData.meetings.push({ date: dateLabel, meetingNum: parsed.meetingNum, entries: meetingEntries });
       }
     }
 
@@ -703,22 +738,62 @@ function renderLeaderboard(data, label) {
 }
 
 function renderMeetings(data) {
-  if (data.meetings.length === 0) {
+  const meetings = data.meetings || [];
+  const events   = data.events   || [];
+
+  if (meetings.length === 0 && events.length === 0) {
     document.getElementById('meetings-list').innerHTML = '<div class="empty-state"><h3>No meetings</h3><p>No meeting data found for this month.</p></div>';
     return;
   }
-  document.getElementById('meetings-list').innerHTML = data.meetings.slice().reverse().map(m => {
-    const entries = m.entries.map(e =>
+
+  // Build a combined list sorted by date descending
+  // Each item is either { type:'meeting', ...m } or { type:'event', ...e }
+  const combined = [
+    ...meetings.map(m => ({ type: 'meeting', ...m })),
+    ...events.map(e => ({ type: 'event', ...e })),
+  ];
+
+  // Sort: meetings have a dateLabel like "12/04/2026 (#50)", events have a plain date
+  // We sort by the raw date string — good enough for same-month ordering
+  combined.sort((a, b) => {
+    const da = (a.date || '').replace(/[^0-9]/g, '').slice(0, 8);
+    const db = (b.date || '').replace(/[^0-9]/g, '').slice(0, 8);
+    return db.localeCompare(da); // descending
+  });
+
+  document.getElementById('meetings-list').innerHTML = combined.map(item => {
+    if (item.type === 'event') {
+      return `<div class="meeting-card">
+        <div class="meeting-hdr" style="background:var(--bg3);">
+          <div class="meeting-date">🎪 ${item.date}</div>
+          <div class="meeting-meta"><span class="chip" style="background:#fef3c7;color:#92400e;border-color:#fde68a;">Event</span></div>
+        </div>
+        <div class="role-grid">
+          <div class="role-entry" style="background:var(--bg3);">
+            <span class="chip" style="background:#fef3c7;color:#92400e;border-color:#fde68a;">Event</span>
+            <span class="rname">${item.name}</span>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    // Regular meeting
+    const meetingLabel = item.meetingNum != null
+      ? `Meeting #${item.meetingNum} &nbsp;·&nbsp; ${item.date.replace(/\s*\(#\d+\)/, '')}`
+      : `📅 ${item.date}`;
+
+    const entries = item.entries.map(e =>
       `<div class="role-entry">
         <span class="chip ${e.cat}">${e.display}</span>
         <span class="rname">${e.name}</span>
         <span class="rpts">+${e.pts}</span>
       </div>`
     ).join('');
+
     return `<div class="meeting-card">
       <div class="meeting-hdr">
-        <div class="meeting-date">📅 ${m.date}</div>
-        <div class="meeting-meta">${m.entries.length} roles filled</div>
+        <div class="meeting-date">📅 ${meetingLabel}</div>
+        <div class="meeting-meta">${item.entries.length} roles filled</div>
       </div>
       <div class="role-grid">${entries}</div>
     </div>`;
