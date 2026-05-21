@@ -932,7 +932,7 @@ async function downloadPDF() {
           ${logoHtml}
           <div>
             <div style="font-size:24px;font-weight:900;color:#C8A84B;letter-spacing:2px;
-              text-transform:uppercase;line-height:1.1;">LEADERBOARD — ${month.toUpperCase()}</div>
+              text-transform:uppercase;line-height:1.1;">CRG LEADERBOARD — ${month.toUpperCase()}</div>
             <div style="font-size:12px;font-weight:600;color:rgba(255,255,255,0.7);
               letter-spacing:1px;margin-top:4px;">CRG Toastmaster of the Month</div>
           </div>
@@ -973,17 +973,17 @@ async function downloadPDF() {
 
     document.body.removeChild(container);
 
-    // Build PDF — A4 landscape if wide, portrait if narrow
+    // Build PDF — A4 portrait
     const { jsPDF } = window.jspdf;
     const imgW = canvas.width;
     const imgH = canvas.height;
-    const a4W = 297; // mm landscape width
-    const a4H = 210; // mm landscape height
+    const a4W = 210; // mm portrait width
+    const a4H = 297; // mm portrait height
     const ratio = Math.min(a4W / imgW, a4H / imgH);
     const pdfW = imgW * ratio;
     const pdfH = imgH * ratio;
 
-    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const imgData = canvas.toDataURL('image/jpeg', 0.95);
 
     // Centre on page
