@@ -224,7 +224,7 @@
     </div>
   </div>
   <div class="lb-table" id="lb-table">
-    <div class="empty-state"><h3>No data loaded</h3><p>Go to Admin → paste your Sheet ID → click Load.</p></div>
+    <div class="empty-state"><h3>Loading leaderboard…</h3><p>Please wait while data is being fetched.</p></div>
   </div>
 </div>
 
@@ -232,7 +232,7 @@
 <div class="page" id="page-meetings">
   <div class="section-header"><div class="section-title">Meeting breakdown</div></div>
   <div id="meetings-list">
-    <div class="empty-state"><h3>No meetings loaded</h3><p>Configure your sheet in Admin first.</p></div>
+    <div class="empty-state"><h3>No meetings loaded</h3><p>Loading meeting data…</p></div>
   </div>
 </div>
 
@@ -303,10 +303,13 @@ const COL_DISPLAY = {
   'Timer': 'Timer',
 };
 
+const DEFAULT_SHEET_ID = '1dnleRBqFDJ4Tslwb0eYBWMrZrQYrUzOvaE_p2N4VU6Y';
+const DEFAULT_TAB_NAME = 'Sheet1';
+
 let S = {
   roles:   JSON.parse(localStorage.getItem('crg_roles') || 'null') || DEFAULT_ROLES,
-  sheetId: localStorage.getItem('crg_sid') || '',
-  tabName: localStorage.getItem('crg_tab') || '',
+  sheetId: localStorage.getItem('crg_sid') || DEFAULT_SHEET_ID,
+  tabName: localStorage.getItem('crg_tab') || DEFAULT_TAB_NAME,
   allData: null,   // parsed: { [monthKey]: { meetings:[], members:{} } }
   months:  [],     // list of month keys in order
   current: '',     // selected month key
@@ -420,7 +423,7 @@ function fetchSheetCSV(sheetId, tabName) {
 }
 
 async function loadData() {
-  if (!S.sheetId) { setStatus('lb-status', 'Configure your Google Sheet in the Admin tab first.', 'error'); return; }
+  if (!S.sheetId) { setStatus('lb-status', 'No sheet configured.', 'error'); return; }
   setStatus('lb-status', 'Loading…', 'loading');
   try {
     const csv = await fetchSheetCSV(S.sheetId, S.tabName);
