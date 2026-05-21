@@ -6,6 +6,8 @@
 <title>CRG TM — Leaderboard</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='48' fill='%231E3A5F' stroke='%23C8A84B' stroke-width='4'/><text x='50' y='58' font-family='serif' font-size='36' font-weight='bold' fill='%23C8A84B' text-anchor='middle'>CRG</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   :root {
     --bg:       #ffffff;
@@ -724,7 +726,8 @@ function renderMeetings(data) {
 }
 
 // ============================================================
-// PDF DOWNLOAD — styled to match CRG Leaderboard PDF design
+// PDF DOWNLOAD — renders off-screen HTML via html2canvas + jsPDF
+// Works on mobile without triggering the print/printer dialog
 // ============================================================
 async function downloadPDF() {
   const sorted = S._sorted;
@@ -732,197 +735,195 @@ async function downloadPDF() {
   const month = S.view === 'alltime' ? 'All Time' : (S.current || 'Leaderboard');
   const data   = S.view === 'alltime' ? buildAllTimeData() : S.allData[S.current];
 
-  // Fetch logo as data URL so it works inside the blob window
-  let logoDataUrl = '';
+  // Show a generating indicator on the button
+  const pdfBtn = document.getElementById('btn-pdf');
+  const origText = pdfBtn.textContent;
+  pdfBtn.textContent = '⏳ Generating…';
+  pdfBtn.disabled = true;
+
   try {
-    const resp = await fetch('CRGLogo.svg');
-    const blob2 = await resp.blob();
-    logoDataUrl = await new Promise(res => {
-      const r = new FileReader();
-      r.onload = () => res(r.result);
-      r.readAsDataURL(blob2);
-    });
-  } catch(e) { /* logo unavailable, skip */ }
+    // Fetch logo as data URL
+    let logoDataUrl = '';
+    try {
+      const resp = await fetch('CRGLogo.svg');
+      const blob2 = await resp.blob();
+      logoDataUrl = await new Promise(res => {
+        const r = new FileReader();
+        r.onload = () => res(r.result);
+        r.readAsDataURL(blob2);
+      });
+    } catch(e) { /* logo unavailable */ }
 
-  // Collect unique meeting dates in order
-  const dates = [];
-  data.meetings.forEach(m => { if (!dates.includes(m.date)) dates.push(m.date); });
+    // Collect unique meeting dates in order
+    const dates = [];
+    data.meetings.forEach(m => { if (!dates.includes(m.date)) dates.push(m.date); });
 
-  // Format a date string like "01/02/2026" → { day:"1st", mon:"Feb" }
-  function fmtDateBadge(raw) {
-    const slash = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-    if (slash) {
-      const d = parseInt(slash[1], 10);
-      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      const mon = months[parseInt(slash[2],10)-1] || '';
-      const sfx = d===1?'st':d===2?'nd':d===3?'rd':'th';
-      return { day: d+sfx, mon };
+    // Format date string → { day, mon }
+    function fmtDateBadge(raw) {
+      const slash = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      if (slash) {
+        const d = parseInt(slash[1], 10);
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const mon = months[parseInt(slash[2],10)-1] || '';
+        const sfx = d===1?'st':d===2?'nd':d===3?'rd':'th';
+        return { day: d+sfx, mon };
+      }
+      const wm = raw.match(/(\d{1,2})(st|nd|rd|th)?\s+([A-Za-z]+)/i);
+      if (wm) return { day: wm[1]+(wm[2]||'th'), mon: wm[3].slice(0,3) };
+      return { day: raw, mon: '' };
     }
-    const wm = raw.match(/(\d{1,2})(st|nd|rd|th)?\s+([A-Za-z]+)/i);
-    if (wm) return { day: wm[1]+(wm[2]||'th'), mon: wm[3].slice(0,3) };
-    return { day: raw, mon: '' };
-  }
 
-  // Role display name → short label for circular badge
-  const ROLE_SHORT = {
-    'TMOD':              'TOAST MASTER\nOF THE DAY',
-    'TTM':               'TABLE TOPICS\nMASTER',
-    'Prepared Speech':   'PREPARED\nSPEECH',
-    'Speech Evaluator':  'SPEECH\nEVALUATOR',
-    'General Evaluator': 'GENERAL\nEVALUATOR',
-    'Grammarian':        'GRAMMARIAN',
-    'Ah-counter':        'AH-COUNTER',
-    'Timer':             'TIMER',
-  };
+    const ROLE_SHORT = {
+      'TMOD':              'TMOD',
+      'TTM':               'TTM',
+      'Prepared Speech':   'SPEECH',
+      'Speech Evaluator':  'EVALUATOR',
+      'General Evaluator': 'GEN. EVAL',
+      'Grammarian':        'GRAMMAR',
+      'Ah-counter':        'AH-COUNT',
+      'Timer':             'TIMER',
+    };
 
-  function badgeLabel(display) {
-    return (ROLE_SHORT[display] || display.toUpperCase()).replace(/\n/g, '<br>');
-  }
+    function roleBadge(display, pts) {
+      const label = ROLE_SHORT[display] || display.toUpperCase();
+      return `<div style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;
+        width:54px;height:54px;border-radius:50%;background:#8B1A1A;border:2px solid #6B1414;
+        color:#fff;text-align:center;margin:2px;flex-shrink:0;">
+        <div style="font-size:6px;font-weight:700;line-height:1.2;letter-spacing:0.3px;
+          text-transform:uppercase;padding:0 4px;">${label}</div>
+        <div style="font-size:15px;font-weight:900;line-height:1;margin-top:1px;">${pts}</div>
+      </div>`;
+    }
 
-  // Dark-red circular badge — matches the PDF design exactly
-  function roleBadge(display, pts) {
-    const label = badgeLabel(display);
-    return `<div style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;
-      width:58px;height:58px;border-radius:50%;background:#8B1A1A;border:3px solid #6B1414;
-      color:#fff;text-align:center;margin:3px;flex-shrink:0;vertical-align:middle;">
-      <div style="font-family:'DM Sans',Arial,sans-serif;font-size:6px;font-weight:700;line-height:1.2;
-        letter-spacing:0.3px;text-transform:uppercase;padding:0 5px;">${label}</div>
-      <div style="font-family:'DM Serif Display',Georgia,serif;font-size:16px;font-weight:900;
-        line-height:1;margin-top:1px;">${pts}</div>
-    </div>`;
-  }
+    function dateColHeader(raw) {
+      const { day, mon } = fmtDateBadge(raw);
+      return `<th style="padding:5px 3px;text-align:center;min-width:80px;vertical-align:bottom;">
+        <div style="display:inline-flex;flex-direction:column;align-items:center;
+          background:rgba(255,255,255,0.13);border-radius:7px;padding:5px 8px;min-width:58px;">
+          <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,0.55);letter-spacing:1px;
+            border-bottom:1px solid rgba(255,255,255,0.25);width:100%;text-align:center;
+            padding-bottom:2px;margin-bottom:2px;">📅</div>
+          <div style="font-size:14px;font-weight:900;color:#fff;line-height:1;">${day}</div>
+          <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,0.8);">${mon}</div>
+        </div>
+      </th>`;
+    }
 
-  // Calendar-style date column header
-  function dateColHeader(raw) {
-    const { day, mon } = fmtDateBadge(raw);
-    return `<th style="padding:6px 4px;text-align:center;min-width:90px;vertical-align:bottom;">
-      <div style="display:inline-flex;flex-direction:column;align-items:center;
-        background:rgba(255,255,255,0.13);border-radius:8px;padding:6px 10px;min-width:64px;">
-        <div style="font-size:9px;font-weight:700;color:rgba(255,255,255,0.55);letter-spacing:1px;
-          border-bottom:1px solid rgba(255,255,255,0.25);width:100%;text-align:center;
-          padding-bottom:3px;margin-bottom:3px;">&#128197;</div>
-        <div style="font-family:'DM Serif Display',Georgia,serif;font-size:15px;font-weight:900;
-          color:#fff;line-height:1;">${day}</div>
-        <div style="font-family:'DM Sans',Arial,sans-serif;font-size:11px;font-weight:600;
-          color:rgba(255,255,255,0.8);">${mon}</div>
-      </div>
-    </th>`;
-  }
+    const dateHdrs = dates.map(d => dateColHeader(d)).join('');
 
-  const dateHdrs = dates.map(d => dateColHeader(d)).join('');
+    const rows = sorted.map((m, i) => {
+      const dateCells = dates.map(date => {
+        const dayRoles = m.roles.filter(r => r.date === date);
+        if (!dayRoles.length) return `<td style="text-align:center;padding:5px;background:#f4f4f4;"></td>`;
+        const badges = dayRoles.map(r => roleBadge(r.display, r.pts)).join('');
+        return `<td style="text-align:center;padding:5px 3px;background:#fff;vertical-align:middle;">
+          <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:2px;">${badges}</div>
+        </td>`;
+      }).join('');
 
-  const rows = sorted.map((m, i) => {
-    const dateCells = dates.map(date => {
-      const dayRoles = m.roles.filter(r => r.date === date);
-      if (!dayRoles.length) return `<td style="text-align:center;padding:6px;background:#f4f4f4;"></td>`;
-      const badges = dayRoles.map(r => roleBadge(r.display, r.pts)).join('');
-      return `<td style="text-align:center;padding:6px 4px;background:#fff;vertical-align:middle;">
-        <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:2px;">${badges}</div>
-      </td>`;
+      const rowBg = i % 2 === 0 ? '#f7f7f7' : '#ffffff';
+      const nameSz = i === 0 ? '15px' : '12px';
+      const nameFw = i === 0 ? '800' : '700';
+      const totalSz = i === 0 ? '26px' : '20px';
+
+      return `<tr style="background:${rowBg};border-bottom:1px solid #ddd;">
+        <td style="padding:8px 10px;text-align:left;vertical-align:middle;">
+          <div style="font-size:${nameSz};font-weight:${nameFw};color:#1a1a1a;
+            letter-spacing:0.5px;text-transform:uppercase;">${m.name}</div>
+        </td>
+        ${dateCells}
+        <td style="text-align:center;padding:6px 8px;vertical-align:middle;">
+          <div style="font-size:${totalSz};font-weight:900;color:#1a1a1a;line-height:1;">${m.pts}</div>
+        </td>
+      </tr>`;
     }).join('');
 
-    const rowBg = i % 2 === 0 ? '#f7f7f7' : '#ffffff';
-    const nameSz = i === 0 ? '16px' : '13px';
-    const nameFw = i === 0 ? '800' : '700';
-    const totalSz = i === 0 ? '30px' : '22px';
+    const sigmaHdr = `<th style="padding:5px 8px;text-align:center;vertical-align:bottom;">
+      <div style="font-size:22px;font-weight:900;color:#fff;">Σ</div>
+    </th>`;
 
-    // page-break-inside:avoid keeps each row intact across page breaks
-    return `<tr style="background:${rowBg};border-bottom:2px solid #ddd;page-break-inside:avoid;">
-      <td style="padding:10px 10px;text-align:left;vertical-align:middle;">
-        <div style="font-family:'DM Serif Display',Georgia,serif;font-size:${nameSz};font-weight:${nameFw};
-          color:#1a1a1a;letter-spacing:0.5px;text-transform:uppercase;">${m.name}</div>
-      </td>
-      ${dateCells}
-      <td style="text-align:center;padding:8px 10px;vertical-align:middle;">
-        <div style="font-family:'DM Serif Display',Georgia,serif;font-size:${totalSz};font-weight:900;
-          color:#1a1a1a;line-height:1;">${m.pts}</div>
-      </td>
-    </tr>`;
-  }).join('');
+    const logoHtml = logoDataUrl
+      ? `<img src="${logoDataUrl}" style="width:120px;height:auto;display:block;" alt="CRG Logo">`
+      : `<div style="width:60px;height:60px;border-radius:50%;border:2px solid #fff;display:flex;
+          align-items:center;justify-content:center;color:#fff;font-size:9px;">CRG</div>`;
 
-  // Sigma (Σ) total column header
-  const sigmaHdr = `<th style="padding:6px 10px;text-align:center;vertical-align:bottom;">
-    <div style="font-family:'DM Serif Display',Georgia,serif;font-size:24px;font-weight:900;color:#fff;">&#931;</div>
-  </th>`;
+    const pdfTitle = (month.replace(/\s+/g,'').toUpperCase()) + '_Leaderboard';
 
-  // Logo HTML — use fetched data URL if available, else fallback text
-  const logoHtml = logoDataUrl
-    ? `<div style="flex-shrink:0;display:flex;align-items:center;justify-content:center;overflow:hidden;">
-        <img src="${logoDataUrl}" style="width:160px;height:auto;display:block;" alt="CRG Logo">
-       </div>`
-    : `<div style="width:80px;height:80px;border-radius:50%;border:3px solid #fff;display:flex;
-        align-items:center;justify-content:center;flex-shrink:0;color:#fff;font-size:10px;text-align:center;">CRG</div>`;
-
-  // Build filename like "FEB2026_Leaderboard.pdf"
-  const pdfTitle = (month.replace(/\s+/g,'').toUpperCase()) + '_Leaderboard';
-
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
-  <title>${pdfTitle}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0;}
-    body{font-family:'DM Sans',Arial,sans-serif;background:#fff;
-      -webkit-print-color-adjust:exact;print-color-adjust:exact;}
-    @media print{
-      @page{
-        margin: 0;
-        size: A4 portrait;
-      }
-      body { padding: 0.8cm; }
-      thead{display:table-header-group;}
-      tr{page-break-inside:avoid;}
-    }
-  </style></head><body>
-  <div style="max-width:780px;margin:0 auto;padding:16px;">
-    <div style="background:#1E3A5F;border-radius:12px 12px 0 0;padding:18px 24px;
-      display:flex;align-items:center;gap:18px;margin-bottom:0;">
-      ${logoHtml}
-      <div>
-        <div style="font-family:'DM Serif Display',Georgia,serif;font-size:26px;font-weight:900;
-          color:#C8A84B;letter-spacing:2px;text-transform:uppercase;line-height:1.1;">
-          LEADERBOARD &mdash; ${month.toUpperCase()}
+    // Build the HTML that will be rendered off-screen
+    const htmlContent = `
+      <div style="font-family:Arial,sans-serif;background:#fff;width:780px;padding:0;">
+        <div style="background:#1E3A5F;border-radius:10px 10px 0 0;padding:16px 22px;
+          display:flex;align-items:center;gap:16px;">
+          ${logoHtml}
+          <div>
+            <div style="font-size:24px;font-weight:900;color:#C8A84B;letter-spacing:2px;
+              text-transform:uppercase;line-height:1.1;">LEADERBOARD — ${month.toUpperCase()}</div>
+            <div style="font-size:12px;font-weight:600;color:rgba(255,255,255,0.7);
+              letter-spacing:1px;margin-top:4px;">CRG Toastmaster of the Month</div>
+          </div>
         </div>
-        <div style="font-family:'DM Sans',Arial,sans-serif;font-size:13px;font-weight:600;
-          color:rgba(255,255,255,0.7);letter-spacing:1px;margin-top:5px;">
-          CRG Toastmaster of the Month
+        <table style="width:100%;border-collapse:collapse;background:#fff;
+          border:2px solid #1E3A5F;border-top:none;">
+          <thead>
+            <tr style="background:#1E3A5F;">
+              <th style="padding:7px 10px;text-align:left;color:#fff;font-size:10px;
+                font-weight:700;min-width:110px;"></th>
+              ${dateHdrs}
+              ${sigmaHdr}
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div style="margin-top:8px;font-size:8px;color:#bbb;text-align:right;">
+          Generated ${new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})}
         </div>
-      </div>
-    </div>
-    <table style="width:100%;border-collapse:collapse;background:#fff;border:2px solid #1E3A5F;border-top:none;">
-      <thead>
-        <tr style="background:#1E3A5F;">
-          <th style="padding:8px 10px;text-align:left;color:#fff;font-size:11px;
-            font-family:'DM Sans',Arial,sans-serif;font-weight:700;min-width:120px;"></th>
-          ${dateHdrs}
-          ${sigmaHdr}
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <div style="margin-top:10px;font-family:'DM Sans',Arial,sans-serif;font-size:9px;
-      color:#bbb;text-align:right;">
-      Generated ${new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})}
-    </div>
-  </div>
-  <script>
-    // Wait for fonts, then print. Close tab after dialog is dismissed.
-    document.fonts.ready.then(function() {
-      setTimeout(function() {
-        window.print();
-      }, 300);
-    });
-    window.addEventListener('afterprint', function() {
-      window.close();
-    });
-  <\/script>
-  </body></html>`;
+      </div>`;
 
-  const blob = new Blob([html], {type:'text/html'});
-  const blobUrl = URL.createObjectURL(blob);
-  const win = window.open(blobUrl, '_blank');
-  // Revoke after enough time for the tab to load
-  setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+    // Mount off-screen container
+    const container = document.createElement('div');
+    container.style.cssText = 'position:fixed;left:-9999px;top:0;z-index:-1;background:#fff;';
+    container.innerHTML = htmlContent;
+    document.body.appendChild(container);
+
+    // Wait a tick for images to settle
+    await new Promise(r => setTimeout(r, 200));
+
+    // Render to canvas
+    const canvas = await html2canvas(container.firstElementChild, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+    });
+
+    document.body.removeChild(container);
+
+    // Build PDF — A4 landscape if wide, portrait if narrow
+    const { jsPDF } = window.jspdf;
+    const imgW = canvas.width;
+    const imgH = canvas.height;
+    const a4W = 297; // mm landscape width
+    const a4H = 210; // mm landscape height
+    const ratio = Math.min(a4W / imgW, a4H / imgH);
+    const pdfW = imgW * ratio;
+    const pdfH = imgH * ratio;
+
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+
+    // Centre on page
+    const xOff = (a4W - pdfW) / 2;
+    const yOff = (a4H - pdfH) / 2;
+    pdf.addImage(imgData, 'JPEG', xOff, yOff, pdfW, pdfH);
+    pdf.save(pdfTitle + '.pdf');
+
+  } catch(err) {
+    alert('PDF generation failed: ' + err.message);
+    console.error(err);
+  } finally {
+    pdfBtn.textContent = origText;
+    pdfBtn.disabled = false;
+  }
 }
 
 // ============================================================
