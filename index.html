@@ -889,6 +889,8 @@ function renderMeetings(data) {
 
 // ============================================================
 // PDF DOWNLOAD — fetches pdf-template.html, injects data, opens print window
+// On desktop: opens blob tab → print dialog → auto-closes
+// On mobile:  renders via html2canvas + jsPDF → direct .pdf download
 // To edit the PDF layout/styles, edit pdf-template.html directly.
 // ============================================================
 async function downloadPDF() {
@@ -901,6 +903,8 @@ async function downloadPDF() {
   const origText = pdfBtn.textContent;
   pdfBtn.textContent = '⏳ Generating…';
   pdfBtn.disabled = true;
+
+  const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
   try {
     // 1. Fetch template and logo in parallel
@@ -997,7 +1001,8 @@ async function downloadPDF() {
     const pdfTitle = month.replace(/\s+/g,'').toUpperCase() + '_Leaderboard';
     const generated = new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'});
 
-    template = template
+    // Strip the auto-print script for mobile (we handle it ourselves)
+    let filledTemplate = template
       .replace('{{PDF_TITLE}}',      pdfTitle)
       .replace('{{LOGO_HTML}}',      logoHtml)
       .replace('{{MONTH}}',          month.toUpperCase())
@@ -1005,11 +1010,60 @@ async function downloadPDF() {
       .replace('{{ROWS}}',           rows)
       .replace('{{GENERATED_DATE}}', generated);
 
-    // 9. Open in new tab and print
-    const blob = new Blob([template], { type: 'text/html' });
-    const blobUrl = URL.createObjectURL(blob);
-    window.open(blobUrl, '_blank');
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+    if (isMobile) {
+      // ── MOBILE: render to canvas → jsPDF download ──────────────────
+      // Mount an off-screen iframe to render the template at fixed desktop width
+      const iframe = document.createElement('iframe');
+      iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:900px;height:1px;border:none;visibility:hidden;';
+      document.body.appendChild(iframe);
+
+      // Write template into iframe
+      iframe.contentDocument.open();
+      iframe.contentDocument.write(filledTemplate);
+      iframe.contentDocument.close();
+
+      // Wait for fonts + images to load
+      await new Promise(res => setTimeout(res, 1200));
+
+      const target = iframe.contentDocument.querySelector('.pdf-wrap');
+      const canvas = await html2canvas(target, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        width: 860,
+        windowWidth: 900,
+      });
+
+      document.body.removeChild(iframe);
+
+      // Build A4 PDF
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const a4W = 210, a4H = 297;
+      const imgW = canvas.width, imgH = canvas.height;
+      const ratio = a4W / imgW;
+      const renderedH = imgH * ratio;
+
+      // If content is taller than one page, add pages
+      let yPos = 0;
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      while (yPos < renderedH) {
+        if (yPos > 0) pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, -yPos, a4W, renderedH);
+        yPos += a4H;
+      }
+
+      pdf.save(pdfTitle + '.pdf');
+
+    } else {
+      // ── DESKTOP: open blob tab → print dialog → auto-close ─────────
+      const blob = new Blob([filledTemplate], { type: 'text/html' });
+      const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank');
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+    }
 
   } catch(err) {
     alert('PDF generation failed: ' + err.message);
