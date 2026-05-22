@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>{{PDF_TITLE}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', Arial, sans-serif;
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ── Page setup ── */
+  @media print {
+    @page {
+      size: A4 portrait;
+      margin: 0;
+    }
+    body { padding: 0.8cm; }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; }
+  }
+
+  /* ── Wrapper ── */
+  .pdf-wrap {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+
+  /* ── Header banner ── */
+  .pdf-header {
+    background: #1E3A5F;
+    border-radius: 12px 12px 0 0;
+    padding: 18px 24px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .pdf-logo {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .pdf-logo img {
+    width: 160px;
+    height: auto;
+    display: block;
+  }
+
+  .pdf-header-text {
+    flex: 1;
+  }
+
+  .pdf-title {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: 26px;
+    font-weight: 900;
+    color: #C8A84B;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    line-height: 1.1;
+  }
+
+  .pdf-subtitle {
+    font-family: 'DM Sans', Arial, sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+    letter-spacing: 1px;
+    margin-top: 5px;
+  }
+
+  /* ── Table ── */
+  .pdf-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border: 2px solid #1E3A5F;
+    border-top: none;
+  }
+
+  .pdf-table thead tr {
+    background: #1E3A5F;
+  }
+
+  .pdf-table thead th {
+    padding: 8px 10px;
+    color: #fff;
+    font-family: 'DM Sans', Arial, sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .pdf-table thead th.col-name {
+    text-align: left;
+    min-width: 120px;
+  }
+
+  .pdf-table thead th.col-date {
+    text-align: center;
+    min-width: 90px;
+    vertical-align: bottom;
+    padding: 6px 4px;
+  }
+
+  .pdf-table thead th.col-total {
+    text-align: center;
+    vertical-align: bottom;
+    padding: 6px 10px;
+  }
+
+  /* Date column header badge */
+  .date-badge {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.13);
+    border-radius: 8px;
+    padding: 6px 10px;
+    min-width: 64px;
+  }
+
+  .date-badge-icon {
+    font-size: 9px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.55);
+    letter-spacing: 1px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+    width: 100%;
+    text-align: center;
+    padding-bottom: 3px;
+    margin-bottom: 3px;
+  }
+
+  .date-badge-day {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: 15px;
+    font-weight: 900;
+    color: #fff;
+    line-height: 1;
+  }
+
+  .date-badge-mon {
+    font-family: 'DM Sans', Arial, sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  /* Sigma header */
+  .sigma {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: 24px;
+    font-weight: 900;
+    color: #fff;
+  }
+
+  /* Body rows */
+  .pdf-table tbody tr {
+    border-bottom: 2px solid #ddd;
+    page-break-inside: avoid;
+  }
+
+  .pdf-table tbody tr.row-even { background: #f7f7f7; }
+  .pdf-table tbody tr.row-odd  { background: #ffffff; }
+
+  .pdf-table tbody td {
+    vertical-align: middle;
+    padding: 8px 10px;
+  }
+
+  .pdf-table tbody td.cell-name {
+    padding: 8px 10px;
+    text-align: left;
+  }
+
+  .member-name {
+    font-family: 'DM Serif Display', Georgia, serif;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: #1a1a1a;
+  }
+
+  .member-name.rank-1 { font-size: 16px; font-weight: 800; }
+  .member-name.rank-n { font-size: 13px; font-weight: 700; }
+
+  .pdf-table tbody td.cell-date {
+    text-align: center;
+    padding: 6px 4px;
+  }
+
+  .pdf-table tbody td.cell-empty {
+    background: #f4f4f4;
+  }
+
+  .badges-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 2px;
+  }
+
+  /* Role badge — dark red circle */
+  .role-badge {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    background: #8B1A1A;
+    border: 3px solid #6B1414;
+    color: #fff;
+    text-align: center;
+    margin: 2px;
+    flex-shrink: 0;
+  }
+
+  .role-badge-label {
+    font-family: 'DM Sans', Arial, sans-serif;
+    font-size: 6px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    padding: 0 5px;
+  }
+
+  .role-badge-pts {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: 16px;
+    font-weight: 900;
+    line-height: 1;
+    margin-top: 1px;
+  }
+
+  .pdf-table tbody td.cell-total {
+    text-align: center;
+    padding: 8px 10px;
+  }
+
+  .total-pts {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-weight: 900;
+    color: #1a1a1a;
+    line-height: 1;
+  }
+
+  .total-pts.rank-1 { font-size: 30px; }
+  .total-pts.rank-n { font-size: 22px; }
+
+  /* ── Footer ── */
+  .pdf-footer {
+    margin-top: 10px;
+    font-family: 'DM Sans', Arial, sans-serif;
+    font-size: 9px;
+    color: #bbb;
+    text-align: right;
+  }
+</style>
+</head>
+<body>
+<div class="pdf-wrap">
+
+  <!-- HEADER -->
+  <div class="pdf-header">
+    <div class="pdf-logo">
+      {{LOGO_HTML}}
+    </div>
+    <div class="pdf-header-text">
+      <div class="pdf-title">LEADERBOARD &mdash; {{MONTH}}</div>
+      <div class="pdf-subtitle">CRG Toastmaster of the Month</div>
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <table class="pdf-table">
+    <thead>
+      <tr>
+        <th class="col-name"></th>
+        {{DATE_HEADERS}}
+        <th class="col-total"><span class="sigma">&#931;</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ROWS}}
+    </tbody>
+  </table>
+
+  <!-- FOOTER -->
+  <div class="pdf-footer">Generated {{GENERATED_DATE}}</div>
+
+</div>
+<script>
+  document.fonts.ready.then(function () {
+    setTimeout(function () { window.print(); }, 300);
+  });
+  window.addEventListener('afterprint', function () { window.close(); });
+</script>
+</body>
+</html>

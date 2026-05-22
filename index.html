@@ -78,6 +78,11 @@
   .lb-row.r3 { background:#fffbf7; }
   .member-name { font-size:15px; font-weight:500; margin-bottom:3px; }
   .member-sub { font-size:12px; color:var(--text3); }
+  .member-sub-sep { margin:0 3px; }
+  @media(max-width:480px) {
+    .member-sub-sep { display:none; }
+    .member-sub-roles { display:block; margin-top:1px; }
+  }
   .role-chips { display:flex; flex-wrap:wrap; gap:3px; justify-content:flex-end; }
   .chip { font-size:10px; padding:2px 6px; border-radius:4px; font-weight:500; background:var(--bg3); color:var(--text2); border:1px solid var(--border); white-space:nowrap; }
   .chip.tmod  { background:#e8f4fd; color:#1d5f8a; border-color:#b5d4f4; }
@@ -152,27 +157,84 @@
   .modal-actions { display:flex; gap:8px; justify-content:flex-end; }
 
   @media(max-width:600px) {
-    nav { padding:0 1rem; }
+    /* NAV — two rows on mobile */
+    nav {
+      padding:0;
+      height:auto;
+      flex-direction:column;
+      align-items:stretch;
+      position:sticky;
+      top:0;
+      z-index:100;
+    }
+    .nav-top-row {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:0 1rem;
+      height:52px;
+      border-bottom:1px solid var(--border);
+    }
+    .nav-tabs {
+      position:static;
+      transform:none;
+      left:auto;
+      display:flex;
+      justify-content:center;
+      gap:0;
+      padding:6px 1rem;
+      background:var(--bg);
+      border-bottom:1px solid var(--border);
+    }
+    .nav-tab {
+      flex:1;
+      text-align:center;
+      padding:6px 4px;
+      font-size:12px;
+      border-radius:6px;
+    }
+    /* Hide desktop right-side controls from nav on mobile */
+    .nav-right { display:none !important; }
+    /* Show mobile controls bar below the leaderboard section header */
+    .mobile-controls {
+      display:flex;
+      gap:8px;
+      align-items:center;
+      margin-bottom:.75rem;
+    }
+    .mobile-controls .view-toggle { flex-shrink:0; }
+    .mobile-controls .month-select { flex:1; min-width:0; }
+
     .page { padding:1.25rem 1rem; }
     .stats-grid { grid-template-columns:1fr 1fr; }
     .champion-card { flex-direction:column; gap:1rem; text-align:center; }
-    .nav-tab { padding:5px 9px; font-size:12px; }
+  }
+  /* Desktop — hide mobile controls bar */
+  @media(min-width:601px) {
+    .nav-top-row { display:contents; }
+    .mobile-controls { display:none; }
   }
 </style>
 </head>
 <body>
 
 <nav>
-  <div class="nav-logo" style="display:flex;align-items:center;gap:8px;">
-    <img src="CRGLogo.svg" style="height:44px;width:auto;display:block;" alt="CRG">
-    CRG <span>TM</span>
+  <!-- Top row: logo + lock (mobile) / full nav (desktop) -->
+  <div class="nav-top-row">
+    <div class="nav-logo" style="display:flex;align-items:center;gap:8px;">
+      <img src="CRGLogo.svg" style="height:44px;width:auto;display:block;" alt="CRG">
+      CRG <span>TM</span>
+    </div>
+    <button class="nav-lock" id="lock-btn" onclick="toggleLock()" title="Admin">🔒</button>
   </div>
+  <!-- Center tabs -->
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="showPage('leaderboard',this)">Leaderboard</button>
     <button class="nav-tab" onclick="showPage('meetings',this)">Meetings</button>
     <button class="nav-tab" id="tab-admin" style="display:none" onclick="showPage('admin',this)">Admin</button>
   </div>
-  <div style="display:flex;align-items:center;gap:8px">
+  <!-- Right controls — desktop only -->
+  <div class="nav-right" style="display:flex;align-items:center;gap:8px;">
     <div class="view-toggle" id="view-toggle">
       <button class="vtab active" id="vtab-monthly" onclick="setView('monthly')">Monthly</button>
       <button class="vtab" id="vtab-alltime" onclick="setView('alltime')">All Time</button>
@@ -180,7 +242,6 @@
     <select class="month-select" id="month-select" onchange="onMonthChange()">
       <option value="">— select month —</option>
     </select>
-    <button class="nav-lock" id="lock-btn" onclick="toggleLock()" title="Admin">🔒</button>
   </div>
 </nav>
 
@@ -202,6 +263,16 @@
 <!-- LEADERBOARD -->
 <div class="page active" id="page-leaderboard">
   <div id="lb-status"></div>
+  <!-- Mobile-only: view toggle + month select -->
+  <div class="mobile-controls">
+    <div class="view-toggle" id="view-toggle-mobile">
+      <button class="vtab active" id="vtab-monthly-m" onclick="setView('monthly')">Monthly</button>
+      <button class="vtab" id="vtab-alltime-m" onclick="setView('alltime')">All Time</button>
+    </div>
+    <select class="month-select" id="month-select-mobile" onchange="onMonthChange()" style="flex:1;min-width:0;">
+      <option value="">— select month —</option>
+    </select>
+  </div>
   <div id="champion-wrap" style="display:none">
     <div class="champion-card">
       <div class="champion-icon">🏆</div>
@@ -332,23 +403,39 @@ function showPage(name, btn) {
 // MONTH SELECTOR & VIEW TOGGLE
 // ============================================================
 function populateMonthSelect(months) {
-  const sel = document.getElementById('month-select');
-  sel.innerHTML = months.map((m, i) =>
+  const opts = months.map((m, i) =>
     `<option value="${m}" ${i === months.length-1 ? 'selected' : ''}>${m}</option>`
   ).join('');
+  document.getElementById('month-select').innerHTML = opts;
+  const mob = document.getElementById('month-select-mobile');
+  if (mob) mob.innerHTML = opts;
   S.current = months[months.length - 1] || '';
 }
 
 function onMonthChange() {
-  S.current = document.getElementById('month-select').value;
+  // Sync whichever selector was changed to the other
+  const desk = document.getElementById('month-select');
+  const mob  = document.getElementById('month-select-mobile');
+  // Determine which one triggered (use the one that matches event target, fallback to desk)
+  S.current = (mob && mob === document.activeElement) ? mob.value : desk.value;
+  if (mob) mob.value = S.current;
+  desk.value = S.current;
   renderCurrentMonth();
 }
 
 function setView(v) {
   S.view = v;
+  // Desktop toggles
   document.getElementById('vtab-monthly').classList.toggle('active', v === 'monthly');
   document.getElementById('vtab-alltime').classList.toggle('active', v === 'alltime');
   document.getElementById('month-select').style.display = v === 'monthly' ? '' : 'none';
+  // Mobile toggles
+  const mm = document.getElementById('vtab-monthly-m');
+  const am = document.getElementById('vtab-alltime-m');
+  const sm = document.getElementById('month-select-mobile');
+  if (mm) mm.classList.toggle('active', v === 'monthly');
+  if (am) am.classList.toggle('active', v === 'alltime');
+  if (sm) sm.style.display = v === 'monthly' ? '' : 'none';
   renderCurrentMonth();
 }
 
@@ -726,7 +813,7 @@ function renderLeaderboard(data, label) {
       <div style="text-align:center">${rankEl}</div>
       <div>
         <div class="member-name">${m.name}</div>
-        <div class="member-sub">${m.meetings} meeting${m.meetings!==1?'s':''} · ${m.roles.length} role${m.roles.length!==1?'s':''}</div>
+        <div class="member-sub"><span style="white-space:nowrap">${m.meetings} meeting${m.meetings!==1?'s':''}</span><span class="member-sub-sep">·</span><span class="member-sub-roles" style="white-space:nowrap">${m.roles.length} role${m.roles.length!==1?'s':''}</span></div>
       </div>
       <div class="role-chips">${chips}</div>
       <div>
@@ -801,8 +888,8 @@ function renderMeetings(data) {
 }
 
 // ============================================================
-// PDF DOWNLOAD — renders off-screen HTML via html2canvas + jsPDF
-// Works on mobile without triggering the print/printer dialog
+// PDF DOWNLOAD — fetches pdf-template.html, injects data, opens print window
+// To edit the PDF layout/styles, edit pdf-template.html directly.
 // ============================================================
 async function downloadPDF() {
   const sorted = S._sorted;
@@ -810,187 +897,119 @@ async function downloadPDF() {
   const month = S.view === 'alltime' ? 'All Time' : (S.current || 'Leaderboard');
   const data   = S.view === 'alltime' ? buildAllTimeData() : S.allData[S.current];
 
-  // Show a generating indicator on the button
   const pdfBtn = document.getElementById('btn-pdf');
   const origText = pdfBtn.textContent;
   pdfBtn.textContent = '⏳ Generating…';
   pdfBtn.disabled = true;
 
   try {
-    // Fetch logo as data URL
-    let logoDataUrl = '';
-    try {
-      const resp = await fetch('CRGLogo.svg');
-      const blob2 = await resp.blob();
-      logoDataUrl = await new Promise(res => {
-        const r = new FileReader();
-        r.onload = () => res(r.result);
-        r.readAsDataURL(blob2);
-      });
-    } catch(e) { /* logo unavailable */ }
+    // 1. Fetch template and logo in parallel
+    const [tmplResp, logoResp] = await Promise.all([
+      fetch('pdf-template.html'),
+      fetch('CRGLogo.svg').catch(() => null),
+    ]);
+    let template = await tmplResp.text();
 
-    // Collect unique meeting dates in order
+    let logoDataUrl = '';
+    if (logoResp && logoResp.ok) {
+      const lb = await logoResp.blob();
+      logoDataUrl = await new Promise(res => {
+        const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(lb);
+      });
+    }
+
+    // 2. Build logo HTML
+    const logoHtml = logoDataUrl
+      ? `<img src="${logoDataUrl}" style="width:160px;height:auto;display:block;" alt="CRG Logo">`
+      : `<div style="width:60px;height:60px;border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:9px;">CRG</div>`;
+
+    // 3. Collect unique meeting dates
     const dates = [];
     data.meetings.forEach(m => { if (!dates.includes(m.date)) dates.push(m.date); });
 
-    // Format date string → { day, mon }
-    function fmtDateBadge(raw) {
+    // 4. Format date → { day, mon }
+    function fmtDate(raw) {
       const slash = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
       if (slash) {
         const d = parseInt(slash[1], 10);
-        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        const mon = months[parseInt(slash[2],10)-1] || '';
+        const mons = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
         const sfx = d===1?'st':d===2?'nd':d===3?'rd':'th';
-        return { day: d+sfx, mon };
+        return { day: d+sfx, mon: mons[parseInt(slash[2],10)-1]||'' };
       }
       const wm = raw.match(/(\d{1,2})(st|nd|rd|th)?\s+([A-Za-z]+)/i);
       if (wm) return { day: wm[1]+(wm[2]||'th'), mon: wm[3].slice(0,3) };
       return { day: raw, mon: '' };
     }
 
+    // 5. Role short labels
     const ROLE_SHORT = {
-      'TMOD':              'TMOD',
-      'TTM':               'TTM',
-      'Prepared Speech':   'SPEECH',
-      'Speech Evaluator':  'EVALUATOR',
-      'General Evaluator': 'GEN. EVAL',
-      'Grammarian':        'GRAMMAR',
-      'Ah-counter':        'AH-COUNT',
-      'Timer':             'TIMER',
+      'TMOD':'TOAST MASTER\nOF THE DAY', 'TTM':'TABLE TOPICS\nMASTER',
+      'Prepared Speech':'PREPARED\nSPEECH', 'Speech Evaluator':'SPEECH\nEVALUATOR',
+      'General Evaluator':'GENERAL\nEVALUATOR', 'Grammarian':'GRAMMARIAN',
+      'Ah-counter':'AH-COUNTER', 'Timer':'TIMER',
     };
 
     function roleBadge(display, pts) {
-      const label = ROLE_SHORT[display] || display.toUpperCase();
-      return `<div style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;
-        width:54px;height:54px;border-radius:50%;background:#8B1A1A;border:2px solid #6B1414;
-        color:#fff;text-align:center;margin:2px;flex-shrink:0;">
-        <div style="font-size:6px;font-weight:700;line-height:1.2;letter-spacing:0.3px;
-          text-transform:uppercase;padding:0 4px;">${label}</div>
-        <div style="font-size:15px;font-weight:900;line-height:1;margin-top:1px;">${pts}</div>
+      const label = (ROLE_SHORT[display] || display.toUpperCase()).replace(/\n/g,'<br>');
+      return `<div class="role-badge">
+        <div class="role-badge-label">${label}</div>
+        <div class="role-badge-pts">${pts}</div>
       </div>`;
     }
 
-    function dateColHeader(raw) {
-      const { day, mon } = fmtDateBadge(raw);
-      return `<th style="padding:5px 3px;text-align:center;min-width:80px;vertical-align:bottom;">
-        <div style="display:inline-flex;flex-direction:column;align-items:center;
-          background:rgba(255,255,255,0.13);border-radius:7px;padding:5px 8px;min-width:58px;">
-          <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,0.55);letter-spacing:1px;
-            border-bottom:1px solid rgba(255,255,255,0.25);width:100%;text-align:center;
-            padding-bottom:2px;margin-bottom:2px;">📅</div>
-          <div style="font-size:14px;font-weight:900;color:#fff;line-height:1;">${day}</div>
-          <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,0.8);">${mon}</div>
+    // 6. Build date column headers
+    const dateHeaders = dates.map(d => {
+      const { day, mon } = fmtDate(d);
+      return `<th class="col-date">
+        <div class="date-badge">
+          <div class="date-badge-icon">&#128197;</div>
+          <div class="date-badge-day">${day}</div>
+          <div class="date-badge-mon">${mon}</div>
         </div>
       </th>`;
-    }
+    }).join('');
 
-    const dateHdrs = dates.map(d => dateColHeader(d)).join('');
-
+    // 7. Build table rows
     const rows = sorted.map((m, i) => {
       const dateCells = dates.map(date => {
         const dayRoles = m.roles.filter(r => r.date === date);
-        if (!dayRoles.length) return `<td style="text-align:center;padding:5px;background:#f4f4f4;"></td>`;
-        const badges = dayRoles.map(r => roleBadge(r.display, r.pts)).join('');
-        return `<td style="text-align:center;padding:5px 3px;background:#fff;vertical-align:middle;">
-          <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:2px;">${badges}</div>
+        if (!dayRoles.length) return `<td class="cell-date cell-empty"></td>`;
+        return `<td class="cell-date">
+          <div class="badges-wrap">${dayRoles.map(r => roleBadge(r.display, r.pts)).join('')}</div>
         </td>`;
       }).join('');
 
-      const rowBg = i % 2 === 0 ? '#f7f7f7' : '#ffffff';
-      const nameSz = i === 0 ? '15px' : '12px';
-      const nameFw = i === 0 ? '800' : '700';
-      const totalSz = i === 0 ? '26px' : '20px';
+      const rankClass = i === 0 ? 'rank-1' : 'rank-n';
+      const rowClass  = i % 2 === 0 ? 'row-even' : 'row-odd';
 
-      return `<tr style="background:${rowBg};border-bottom:1px solid #ddd;">
-        <td style="padding:8px 10px;text-align:left;vertical-align:middle;">
-          <div style="font-size:${nameSz};font-weight:${nameFw};color:#1a1a1a;
-            letter-spacing:0.5px;text-transform:uppercase;">${m.name}</div>
+      return `<tr class="${rowClass}">
+        <td class="cell-name">
+          <div class="member-name ${rankClass}">${m.name}</div>
         </td>
         ${dateCells}
-        <td style="text-align:center;padding:6px 8px;vertical-align:middle;">
-          <div style="font-size:${totalSz};font-weight:900;color:#1a1a1a;line-height:1;">${m.pts}</div>
+        <td class="cell-total">
+          <div class="total-pts ${rankClass}">${m.pts}</div>
         </td>
       </tr>`;
     }).join('');
 
-    const sigmaHdr = `<th style="padding:5px 8px;text-align:center;vertical-align:bottom;">
-      <div style="font-size:22px;font-weight:900;color:#fff;">Σ</div>
-    </th>`;
+    // 8. Inject all placeholders into template
+    const pdfTitle = month.replace(/\s+/g,'').toUpperCase() + '_Leaderboard';
+    const generated = new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'});
 
-    const logoHtml = logoDataUrl
-      ? `<img src="${logoDataUrl}" style="width:120px;height:auto;display:block;" alt="CRG Logo">`
-      : `<div style="width:60px;height:60px;border-radius:50%;border:2px solid #fff;display:flex;
-          align-items:center;justify-content:center;color:#fff;font-size:9px;">CRG</div>`;
+    template = template
+      .replace('{{PDF_TITLE}}',      pdfTitle)
+      .replace('{{LOGO_HTML}}',      logoHtml)
+      .replace('{{MONTH}}',          month.toUpperCase())
+      .replace('{{DATE_HEADERS}}',   dateHeaders)
+      .replace('{{ROWS}}',           rows)
+      .replace('{{GENERATED_DATE}}', generated);
 
-    const pdfTitle = (month.replace(/\s+/g,'').toUpperCase()) + '_Leaderboard';
-
-    // Build the HTML that will be rendered off-screen
-    const htmlContent = `
-      <div style="font-family:Arial,sans-serif;background:#fff;width:780px;padding:0;">
-        <div style="background:#1E3A5F;border-radius:10px 10px 0 0;padding:16px 22px;
-          display:flex;align-items:center;gap:16px;">
-          ${logoHtml}
-          <div>
-            <div style="font-size:24px;font-weight:900;color:#C8A84B;letter-spacing:2px;
-              text-transform:uppercase;line-height:1.1;">CRG LEADERBOARD — ${month.toUpperCase()}</div>
-            <div style="font-size:12px;font-weight:600;color:rgba(255,255,255,0.7);
-              letter-spacing:1px;margin-top:4px;">CRG Toastmaster of the Month</div>
-          </div>
-        </div>
-        <table style="width:100%;border-collapse:collapse;background:#fff;
-          border:2px solid #1E3A5F;border-top:none;">
-          <thead>
-            <tr style="background:#1E3A5F;">
-              <th style="padding:7px 10px;text-align:left;color:#fff;font-size:10px;
-                font-weight:700;min-width:110px;"></th>
-              ${dateHdrs}
-              ${sigmaHdr}
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-        <div style="margin-top:8px;font-size:8px;color:#bbb;text-align:right;">
-          Generated ${new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})}
-        </div>
-      </div>`;
-
-    // Mount off-screen container
-    const container = document.createElement('div');
-    container.style.cssText = 'position:fixed;left:-9999px;top:0;z-index:-1;background:#fff;';
-    container.innerHTML = htmlContent;
-    document.body.appendChild(container);
-
-    // Wait a tick for images to settle
-    await new Promise(r => setTimeout(r, 200));
-
-    // Render to canvas
-    const canvas = await html2canvas(container.firstElementChild, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: '#ffffff',
-      logging: false,
-    });
-
-    document.body.removeChild(container);
-
-    // Build PDF — A4 portrait
-    const { jsPDF } = window.jspdf;
-    const imgW = canvas.width;
-    const imgH = canvas.height;
-    const a4W = 210; // mm portrait width
-    const a4H = 297; // mm portrait height
-    const ratio = Math.min(a4W / imgW, a4H / imgH);
-    const pdfW = imgW * ratio;
-    const pdfH = imgH * ratio;
-
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    const imgData = canvas.toDataURL('image/jpeg', 0.95);
-
-    // Centre on page
-    const xOff = (a4W - pdfW) / 2;
-    const yOff = (a4H - pdfH) / 2;
-    pdf.addImage(imgData, 'JPEG', xOff, yOff, pdfW, pdfH);
-    pdf.save(pdfTitle + '.pdf');
+    // 9. Open in new tab and print
+    const blob = new Blob([template], { type: 'text/html' });
+    const blobUrl = URL.createObjectURL(blob);
+    window.open(blobUrl, '_blank');
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
 
   } catch(err) {
     alert('PDF generation failed: ' + err.message);
