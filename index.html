@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -888,10 +888,10 @@ function renderMeetings(data) {
 }
 
 // ============================================================
-// PDF DOWNLOAD — fetches pdf-template.html, injects data, opens print window
-// On desktop: opens blob tab → print dialog → auto-closes
-// On mobile:  renders via html2canvas + jsPDF → direct .pdf download
-// To edit the PDF layout/styles, edit pdf-template.html directly.
+// PDF DOWNLOAD — fetches leaderboard.html template, injects data
+// Desktop: opens blob tab → print dialog → auto-closes
+// Mobile:  renders via html2canvas + jsPDF → direct .pdf download
+// To edit PDF layout/styles → edit leaderboard.html directly
 // ============================================================
 async function downloadPDF() {
   const sorted = S._sorted;
@@ -909,7 +909,7 @@ async function downloadPDF() {
   try {
     // 1. Fetch template and logo in parallel
     const [tmplResp, logoResp] = await Promise.all([
-      fetch('pdf-template.html'),
+      fetch('leaderboard.html'),
       fetch('CRGLogo.svg').catch(() => null),
     ]);
     let template = await tmplResp.text();
@@ -922,12 +922,12 @@ async function downloadPDF() {
       });
     }
 
-    // 2. Build logo HTML
+    // 2. Logo HTML
     const logoHtml = logoDataUrl
-      ? `<img src="${logoDataUrl}" style="width:160px;height:auto;display:block;" alt="CRG Logo">`
-      : `<div style="width:60px;height:60px;border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:9px;">CRG</div>`;
+      ? `<img src="${logoDataUrl}" style="width:140px;height:auto;display:block;" alt="CRG Logo">`
+      : `<div class="hero-logo-fallback">CRG</div>`;
 
-    // 3. Collect unique meeting dates
+    // 3. Collect unique meeting dates in order
     const dates = [];
     data.meetings.forEach(m => { if (!dates.includes(m.date)) dates.push(m.date); });
 
@@ -945,121 +945,148 @@ async function downloadPDF() {
       return { day: raw, mon: '' };
     }
 
-    // 5. Role short labels
-    const ROLE_SHORT = {
-      'TMOD':'TOAST MASTER\nOF THE DAY', 'TTM':'TABLE TOPICS\nMASTER',
-      'Prepared Speech':'PREPARED\nSPEECH', 'Speech Evaluator':'SPEECH\nEVALUATOR',
-      'General Evaluator':'GENERAL\nEVALUATOR', 'Grammarian':'GRAMMARIAN',
-      'Ah-counter':'AH-COUNTER', 'Timer':'TIMER',
+    // 5. Role → CSS class mapping
+    const ROLE_CLS = {
+      'TMOD':'rt-tmod', 'TTM':'rt-ttm',
+      'Prepared Speech':'rt-speech', 'Speech Evaluator':'rt-eval',
+      'General Evaluator':'rt-ge', 'Grammarian':'rt-gram',
+      'Ah-counter':'rt-ah', 'Timer':'rt-timer',
     };
 
-    function roleBadge(display, pts) {
-      const label = (ROLE_SHORT[display] || display.toUpperCase()).replace(/\n/g,'<br>');
-      return `<div class="role-badge">
-        <div class="role-badge-label">${label}</div>
-        <div class="role-badge-pts">${pts}</div>
-      </div>`;
-    }
+    // 6. Avatar colour classes
+    const AV = ['av-1','av-2','av-3','av-4','av-5','av-6','av-7','av-8','av-9','av-10','av-11','av-12'];
 
-    // 6. Build date column headers
+    // 7. Date column headers
     const dateHeaders = dates.map(d => {
       const { day, mon } = fmtDate(d);
-      return `<th class="col-date">
-        <div class="date-badge">
-          <div class="date-badge-icon">&#128197;</div>
-          <div class="date-badge-day">${day}</div>
-          <div class="date-badge-mon">${mon}</div>
+      return `<th>
+        <div class="date-th-badge">
+          <div class="date-th-day">${day}</div>
+          <div class="date-th-mon">${mon}</div>
         </div>
       </th>`;
     }).join('');
 
-    // 7. Build table rows
+    // 8. Build rows
+    const maxPts = sorted[0]?.pts || 1;
     const rows = sorted.map((m, i) => {
+      const rank = i + 1;
+      const rankClass = rank <= 3 ? `rank-${rank}` : '';
+      const rankDisplay = rank <= 3 ? ['①','②','③'][i] : rank;
+      const av = AV[i % AV.length];
+      const initials = m.name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+      const pct = Math.round((m.pts / maxPts) * 100);
+
       const dateCells = dates.map(date => {
         const dayRoles = m.roles.filter(r => r.date === date);
-        if (!dayRoles.length) return `<td class="cell-date cell-empty"></td>`;
-        return `<td class="cell-date">
-          <div class="badges-wrap">${dayRoles.map(r => roleBadge(r.display, r.pts)).join('')}</div>
-        </td>`;
+        if (!dayRoles.length) return `<td class="td-date"><span class="no-pts">·</span></td>`;
+        const entries = dayRoles.map(r => {
+          const cls = ROLE_CLS[r.display] || 'rt-tmod';
+          return `<div class="entry-item">
+            <span class="role-tag ${cls}">${r.display}</span>
+            <span class="pts-val"><span class="pts-sign">+</span>${r.pts}</span>
+          </div>`;
+        }).join('');
+        return `<td class="td-date"><div class="cell-entries">${entries}</div></td>`;
       }).join('');
 
-      const rankClass = i === 0 ? 'rank-1' : 'rank-n';
-      const rowClass  = i % 2 === 0 ? 'row-even' : 'row-odd';
-
-      return `<tr class="${rowClass}">
-        <td class="cell-name">
-          <div class="member-name ${rankClass}">${m.name}</div>
+      return `<tr class="data-row ${rankClass}">
+        <td class="td-rank"><span class="rank-num">${rankDisplay}</span></td>
+        <td class="td-name">
+          <div class="person">
+            <div class="avatar ${av}">${initials}</div>
+            <div class="person-name">${m.name}</div>
+          </div>
         </td>
         ${dateCells}
-        <td class="cell-total">
-          <div class="total-pts ${rankClass}">${m.pts}</div>
+        <td class="td-total">
+          <div class="total-big ${rank <= 3 ? '' : 'rest'}">${m.pts}</div>
+          <div class="mini-bar"><div class="mini-fill" style="width:0" data-pct="${pct}"></div></div>
         </td>
       </tr>`;
     }).join('');
 
-    // 8. Inject all placeholders into template
+    // 9. Inject placeholders
     const pdfTitle = month.replace(/\s+/g,'').toUpperCase() + '_Leaderboard';
     const generated = new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'});
 
-    // Strip the auto-print script for mobile (we handle it ourselves)
-    let filledTemplate = template
+    let filled = template
       .replace('{{PDF_TITLE}}',      pdfTitle)
       .replace('{{LOGO_HTML}}',      logoHtml)
       .replace('{{MONTH}}',          month.toUpperCase())
       .replace('{{DATE_HEADERS}}',   dateHeaders)
       .replace('{{ROWS}}',           rows)
-      .replace('{{GENERATED_DATE}}', generated);
+      .replace('{{STAT_MEMBERS}}',   sorted.length)
+      .replace('{{STAT_MEETINGS}}',  dates.length)
+      .replace('{{STAT_TOP}}',       maxPts)
+      .replace(/\{\{GENERATED_DATE\}\}/g, generated)
+      .replace(/\{\{STAT_MEMBERS\}\}/g,   sorted.length);
 
     if (isMobile) {
-      // ── MOBILE: render to canvas → jsPDF download ──────────────────
-      // Mount an off-screen iframe to render the template at fixed desktop width
+      // ── MOBILE: html2canvas → jsPDF direct download ──
       const iframe = document.createElement('iframe');
-      iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:900px;height:1px;border:none;visibility:hidden;';
+      iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:1080px;height:1px;border:none;visibility:hidden;';
       document.body.appendChild(iframe);
-
-      // Write template into iframe
       iframe.contentDocument.open();
-      iframe.contentDocument.write(filledTemplate);
+      iframe.contentDocument.write(filled);
       iframe.contentDocument.close();
 
-      // Wait for fonts + images to load
-      await new Promise(res => setTimeout(res, 1200));
+      await new Promise(res => setTimeout(res, 1400));
 
-      const target = iframe.contentDocument.querySelector('.pdf-wrap');
-      const canvas = await html2canvas(target, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        width: 860,
-        windowWidth: 900,
+      // Render the full page as one canvas — footer flows naturally after content
+      const fullCanvas = await html2canvas(iframe.contentDocument.body, {
+        scale: 2, useCORS: true, allowTaint: true,
+        backgroundColor: '#f0f4f9', logging: false,
+        width: 1080, windowWidth: 1080,
       });
 
       document.body.removeChild(iframe);
 
-      // Build A4 PDF
       const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const a4W = 210, a4H = 297;
-      const imgW = canvas.width, imgH = canvas.height;
-      const ratio = a4W / imgW;
-      const renderedH = imgH * ratio;
+      const pdf        = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const a4W        = 210;
+      const a4H        = 297;
+      const topMargin  = 10; // mm gap at top of every continuation page
 
-      // If content is taller than one page, add pages
-      let yPos = 0;
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      while (yPos < renderedH) {
-        if (yPos > 0) pdf.addPage();
-        pdf.addImage(imgData, 'JPEG', 0, -yPos, a4W, renderedH);
-        yPos += a4H;
+      const ratio      = a4W / fullCanvas.width;
+      const totalH     = fullCanvas.height * ratio;
+      const imgData    = fullCanvas.toDataURL('image/jpeg', 0.95);
+
+      let page    = 0;
+      let yOffset = 0; // mm of image already consumed
+
+      while (yOffset < totalH) {
+        if (page > 0) pdf.addPage();
+
+        const contentTop = page === 0 ? 0 : topMargin;
+        const availH     = a4H - contentTop;
+        const remaining  = totalH - yOffset;
+        const sliceH     = Math.min(availH, remaining);
+
+        // Draw full image shifted so the correct slice appears at contentTop
+        pdf.addImage(imgData, 'JPEG', 0, contentTop - yOffset, a4W, totalH);
+
+        // Mask overflow below the slice
+        if (contentTop + sliceH < a4H) {
+          pdf.setFillColor(240, 244, 249);
+          pdf.rect(0, contentTop + sliceH, a4W, a4H - (contentTop + sliceH), 'F');
+        }
+
+        // Mask the top margin area on continuation pages
+        if (page > 0) {
+          pdf.setFillColor(240, 244, 249);
+          pdf.rect(0, 0, a4W, topMargin, 'F');
+        }
+
+        yOffset += sliceH;
+        page++;
       }
 
       pdf.save(pdfTitle + '.pdf');
 
     } else {
-      // ── DESKTOP: open blob tab → print dialog → auto-close ─────────
-      const blob = new Blob([filledTemplate], { type: 'text/html' });
+      // ── DESKTOP: blob tab → print dialog → auto-close ──
+      const blob = new Blob([filled], { type: 'text/html' });
       const blobUrl = URL.createObjectURL(blob);
       window.open(blobUrl, '_blank');
       setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
