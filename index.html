@@ -1028,7 +1028,9 @@ async function downloadPDF() {
       iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:1080px;height:1px;border:none;visibility:hidden;';
       document.body.appendChild(iframe);
       iframe.contentDocument.open();
-      iframe.contentDocument.write(filled);
+      // Strip the print/close script so mobile iframe doesn't trigger print dialog
+      const mobileHtml = filled.replace(/<script>[\s\S]*?window\.print[\s\S]*?<\/script>/i, '');
+      iframe.contentDocument.write(mobileHtml);
       iframe.contentDocument.close();
 
       await new Promise(res => setTimeout(res, 1400));
