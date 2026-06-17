@@ -708,12 +708,15 @@ function parseSheet(csv) {
         const rawNames = cellVal.includes(',') ? cellVal.split(',') : [cellVal];
         rawNames.forEach(raw => {
           let name = raw.trim();
+          // Extract bracket annotation (e.g. L2P3, CC, ACB) before stripping
+          const annotMatch = name.match(/\(([^)]+)\)/);
+          const annotation = annotMatch ? annotMatch[1].trim() : '';
           name = name.replace(/\s*\(.*?\)/g, '').trim();        // remove (...)
           name = name.replace(/\s+L\d+P\d+$/i, '').trim();      // remove L1P2 etc
           name = name.replace(/\s*-\s*[A-Za-z\s]+session.*/i, '').trim(); // remove "- Education Session"
           if (!name || name.toLowerCase() === 'na' || name === 'TCoS') return;
 
-          meetingEntries.push({ role: colHeader, display: roleDef.display, pts: roleDef.pts, cat: roleDef.cat, name });
+          meetingEntries.push({ role: colHeader, display: roleDef.display, pts: roleDef.pts, cat: roleDef.cat, name, annotation });
 
           if (!monthData.members[name]) monthData.members[name] = { pts: 0, roles: [], meetingDates: new Set(), scoredRoles: new Set() };
           // Only count points once per unique display role per member
@@ -721,7 +724,7 @@ function parseSheet(csv) {
             monthData.members[name].pts += roleDef.pts;
             monthData.members[name].scoredRoles.add(roleDef.display);
           }
-          monthData.members[name].roles.push({ col: colHeader, display: roleDef.display, pts: roleDef.pts, cat: roleDef.cat, date: dateLabel });
+          monthData.members[name].roles.push({ col: colHeader, display: roleDef.display, pts: roleDef.pts, cat: roleDef.cat, date: dateLabel, annotation });
           monthData.members[name].meetingDates.add(dateLabel);
         });
       }
@@ -805,6 +808,12 @@ function renderLeaderboard(data, label) {
       `<span class="chip ${cat}">${name}${count > 1 ? ' ×' + count : ''}</span>`
     ).join('');
 
+    // Collect unique annotations across all roles for this member
+    const uniqueAnnotations = [...new Set(m.roles.map(r => r.annotation).filter(Boolean))];
+    const annotations = uniqueAnnotations.map(a =>
+      `<span class="member-sub-sep">·</span><span class="chip" style="background:#e8f0fe;color:#1a3a8a;border-color:#c5d5f5;font-size:10px;">${a}</span>`
+    ).join('');
+
     const rankEl = i < 3
       ? `<span style="font-size:20px">${medals[i]}</span>`
       : `<span style="font-size:14px;font-weight:500;color:var(--text3)">${i+1}</span>`;
@@ -813,7 +822,7 @@ function renderLeaderboard(data, label) {
       <div style="text-align:center">${rankEl}</div>
       <div>
         <div class="member-name">${m.name}</div>
-        <div class="member-sub"><span style="white-space:nowrap">${m.meetings} meeting${m.meetings!==1?'s':''}</span><span class="member-sub-sep">·</span><span class="member-sub-roles" style="white-space:nowrap">${m.roles.length} role${m.roles.length!==1?'s':''}</span></div>
+        <div class="member-sub"><span style="white-space:nowrap">${m.meetings} meeting${m.meetings!==1?'s':''}</span><span class="member-sub-sep">·</span><span class="member-sub-roles" style="white-space:nowrap">${m.roles.length} role${m.roles.length!==1?'s':''}</span>${annotations}</div>
       </div>
       <div class="role-chips">${chips}</div>
       <div>
@@ -872,7 +881,7 @@ function renderMeetings(data) {
     const entries = item.entries.map(e =>
       `<div class="role-entry">
         <span class="chip ${e.cat}">${e.display}</span>
-        <span class="rname">${e.name}</span>
+        <span class="rname">${e.name}${e.annotation ? ` <span style="font-size:10px;color:var(--text3);font-weight:400;">(${e.annotation})</span>` : ''}</span>
         <span class="rpts">+${e.pts}</span>
       </div>`
     ).join('');
@@ -903,8 +912,6 @@ async function downloadPDF() {
   const origText = pdfBtn.textContent;
   pdfBtn.textContent = '⏳ Generating…';
   pdfBtn.disabled = true;
-
-  const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
   try {
     // 1. Fetch template and logo in parallel
@@ -959,12 +966,7 @@ async function downloadPDF() {
     // 7. Date column headers
     const dateHeaders = dates.map(d => {
       const { day, mon } = fmtDate(d);
-      return `<th>
-        <div class="date-th-badge">
-          <div class="date-th-day">${day}</div>
-          <div class="date-th-mon">${mon}</div>
-        </div>
-      </th>`;
+      return `<th class="th-date"><div class="date-th-badge"><div class="date-th-day">${day}</div><div class="date-th-mon">${mon}</div></div></th>`;
     }).join('');
 
     // 8. Build rows
@@ -976,6 +978,12 @@ async function downloadPDF() {
       const av = AV[i % AV.length];
       const initials = m.name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
       const pct = Math.round((m.pts / maxPts) * 100);
+
+      // Unique annotations for this member
+      const memberAnnotations = [...new Set(m.roles.map(r => r.annotation).filter(Boolean))];
+      const annotHtml = memberAnnotations.map(a =>
+        `<span style="font-size:.48rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 4px;border-radius:2px;background:#dce7f5;color:#1e3a5e;margin-left:4px;">${a}</span>`
+      ).join('');
 
       const dateCells = dates.map(date => {
         const dayRoles = m.roles.filter(r => r.date === date);
@@ -995,7 +1003,10 @@ async function downloadPDF() {
         <td class="td-name">
           <div class="person">
             <div class="avatar ${av}">${initials}</div>
-            <div class="person-name">${m.name}</div>
+            <div>
+              <div class="person-name">${m.name}</div>
+              ${annotHtml ? `<div style="margin-top:2px;">${annotHtml}</div>` : ''}
+            </div>
           </div>
         </td>
         ${dateCells}
@@ -1008,7 +1019,6 @@ async function downloadPDF() {
 
     // 9. Inject placeholders
     const pdfTitle = month.replace(/\s+/g,'').toUpperCase() + '_Leaderboard';
-    const generated = new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'});
 
     let filled = template
       .replace('{{PDF_TITLE}}',      pdfTitle)
@@ -1019,80 +1029,82 @@ async function downloadPDF() {
       .replace('{{STAT_MEMBERS}}',   sorted.length)
       .replace('{{STAT_MEETINGS}}',  dates.length)
       .replace('{{STAT_TOP}}',       maxPts)
-      .replace(/\{\{GENERATED_DATE\}\}/g, generated)
-      .replace(/\{\{STAT_MEMBERS\}\}/g,   sorted.length);
+      .replace(/\{\{STAT_MEMBERS\}\}/g, sorted.length);
 
-    if (isMobile) {
-      // ── MOBILE: html2canvas → jsPDF direct download ──
-      const iframe = document.createElement('iframe');
-      iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:1080px;height:1px;border:none;visibility:hidden;';
-      document.body.appendChild(iframe);
-      iframe.contentDocument.open();
-      // Strip the print/close script so mobile iframe doesn't trigger print dialog
-      const mobileHtml = filled.replace(/<script>[\s\S]*?window\.print[\s\S]*?<\/script>/i, '');
-      iframe.contentDocument.write(mobileHtml);
-      iframe.contentDocument.close();
+    // ── ALL PLATFORMS: html2canvas → jsPDF direct download ──
+    // ponytail: render at 794px (A4 @ 96dpi) → canvas maps 1:1 to A4 width, no side whitespace.
+    const A4_PX = 794;
 
-      await new Promise(res => setTimeout(res, 1400));
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = `position:fixed;left:-9999px;top:0;width:${A4_PX}px;height:1px;border:none;visibility:hidden;`;
+    document.body.appendChild(iframe);
+    iframe.contentDocument.open();
+    // Strip the auto-print script from the template
+    const renderHtml = filled.replace(/<script>[\s\S]*?window\.print[\s\S]*?<\/script>/i, '');
+    iframe.contentDocument.write(renderHtml);
+    iframe.contentDocument.close();
 
-      // Render the full page as one canvas — footer flows naturally after content
-      const fullCanvas = await html2canvas(iframe.contentDocument.body, {
-        scale: 2, useCORS: true, allowTaint: true,
-        backgroundColor: '#f0f4f9', logging: false,
-        width: 1080, windowWidth: 1080,
-      });
+    // Wait for fonts + layout to settle — DM Sans from Google Fonts needs ~1s in an iframe
+    await new Promise(res => {
+      const doc = iframe.contentDocument;
+      // Prefer fonts.ready if available, then fall back to a timeout
+      if (doc.fonts && doc.fonts.ready) {
+        doc.fonts.ready.then(() => setTimeout(res, 300));
+      } else {
+        setTimeout(res, 1500);
+      }
+    });
 
-      document.body.removeChild(iframe);
+    // Collect row bottom positions before html2canvas scrolls/transforms anything
+    const iDoc = iframe.contentDocument;
+    const rowBottomsPx = Array.from(iDoc.querySelectorAll('tbody tr')).map(tr => {
+      const r = tr.getBoundingClientRect();
+      return r.top + r.height; // px from top of document (body at top:0)
+    });
 
-      const { jsPDF } = window.jspdf;
-      const pdf        = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const a4W        = 210;
-      const a4H        = 297;
-      const topMargin  = 10; // mm gap at top of every continuation page
+    const canvas = await html2canvas(iDoc.body, {
+      scale: 2, useCORS: true, allowTaint: true,
+      backgroundColor: '#f0f4f9', logging: false,
+      width: A4_PX, windowWidth: A4_PX,
+    });
 
-      const ratio      = a4W / fullCanvas.width;
-      const totalH     = fullCanvas.height * ratio;
-      const imgData    = fullCanvas.toDataURL('image/jpeg', 0.95);
+    document.body.removeChild(iframe);
 
-      let page    = 0;
-      let yOffset = 0; // mm of image already consumed
+    const { jsPDF } = window.jspdf;
+    const pdf      = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const a4W      = 210;
+    const a4H      = 297;
+    const canvasScale = canvas.width / A4_PX;        // == 2
+    const mmPerPx  = a4W / canvas.width;             // mm per canvas pixel
+    const totalH   = canvas.height * mmPerPx;
+    const imgData  = canvas.toDataURL('image/jpeg', 0.95);
 
-      while (yOffset < totalH) {
-        if (page > 0) pdf.addPage();
+    // Convert row bottoms from iframe-px to PDF-mm
+    const rowBottomsMm = rowBottomsPx.map(px => px * canvasScale * mmPerPx);
 
-        const contentTop = page === 0 ? 0 : topMargin;
-        const availH     = a4H - contentTop;
-        const remaining  = totalH - yOffset;
-        const sliceH     = Math.min(availH, remaining);
+    let page = 0, consumed = 0;
+    while (consumed < totalH) {
+      if (page > 0) pdf.addPage();
 
-        // Draw full image shifted so the correct slice appears at contentTop
-        pdf.addImage(imgData, 'JPEG', 0, contentTop - yOffset, a4W, totalH);
-
-        // Mask overflow below the slice
-        if (contentTop + sliceH < a4H) {
-          pdf.setFillColor(240, 244, 249);
-          pdf.rect(0, contentTop + sliceH, a4W, a4H - (contentTop + sliceH), 'F');
-        }
-
-        // Mask the top margin area on continuation pages
-        if (page > 0) {
-          pdf.setFillColor(240, 244, 249);
-          pdf.rect(0, 0, a4W, topMargin, 'F');
-        }
-
-        yOffset += sliceH;
-        page++;
+      // Snap the page cut to the last row bottom that fits, avoiding mid-row slices
+      let cutAt = consumed + a4H;
+      if (cutAt < totalH) {
+        const fitting = rowBottomsMm.filter(b => b > consumed + 20 && b <= cutAt);
+        if (fitting.length) cutAt = fitting[fitting.length - 1];
       }
 
-      pdf.save(pdfTitle + '.pdf');
+      const sliceH = Math.min(cutAt - consumed, a4H);
+      pdf.addImage(imgData, 'JPEG', 0, -consumed, a4W, totalH);
+      if (sliceH < a4H) {
+        pdf.setFillColor(240, 244, 249);
+        pdf.rect(0, sliceH, a4W, a4H - sliceH, 'F');
+      }
 
-    } else {
-      // ── DESKTOP: blob tab → print dialog → auto-close ──
-      const blob = new Blob([filled], { type: 'text/html' });
-      const blobUrl = URL.createObjectURL(blob);
-      window.open(blobUrl, '_blank');
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+      consumed = cutAt;
+      page++;
     }
+
+    pdf.save(pdfTitle + '.pdf');
 
   } catch(err) {
     alert('PDF generation failed: ' + err.message);
