@@ -31,14 +31,17 @@
   body { font-family:'DM Sans',sans-serif; background:var(--bg2); color:var(--text); min-height:100vh; }
 
   /* NAV */
-  nav { background:var(--bg); border-bottom:1px solid var(--border); padding:0 2rem; display:flex; align-items:center; justify-content:space-between; height:60px; position:sticky; top:0; z-index:100; }
+  nav { background:var(--bg); border-bottom:1px solid var(--border); padding:0 2rem; display:grid; grid-template-columns:1fr auto 1fr; align-items:center; height:60px; position:sticky; top:0; z-index:100; }
   .nav-logo { font-family:'DM Serif Display',serif; font-size:20px; letter-spacing:-0.3px; }
   .nav-logo span { color:var(--gold); }
-  .nav-tabs { display:flex; gap:4px; position:absolute; left:50%; transform:translateX(-50%); }
+  .nav-tabs { display:flex; gap:4px; }
   .nav-tab { padding:6px 14px; border-radius:6px; font-size:14px; cursor:pointer; border:none; background:none; color:var(--text2); transition:all .15s; font-family:inherit; }
   .nav-tab:hover { background:var(--bg3); color:var(--text); }
   .nav-tab.active { background:var(--text); color:#fff; font-weight:500; }
   .month-select { border:1px solid var(--border); border-radius:6px; padding:5px 10px; font-size:13px; font-family:inherit; background:var(--bg2); color:var(--text); cursor:pointer; }
+
+  /* NAV RIGHT */
+  .nav-right { display:flex; align-items:center; gap:8px; justify-content:flex-end; }
 
   /* VIEW TOGGLE */
   .view-toggle { display:flex; background:var(--bg3); border:1px solid var(--border); border-radius:7px; padding:2px; gap:2px; }
@@ -144,6 +147,9 @@
   /* LOCK BUTTON */
   .nav-lock { background:none; border:none; cursor:pointer; padding:4px 6px; border-radius:6px; color:var(--text3); font-size:15px; line-height:1; transition:all .15s; }
   .nav-lock:hover { background:var(--bg3); color:var(--text); }
+  /* mobile lock only shows on mobile; desktop lock only shows on desktop */
+  @media(min-width:601px) { .nav-lock-mobile { display:none; } }
+  @media(max-width:600px)  { .nav-lock-desktop { display:none !important; } }
 
   /* PASSWORD MODAL */
   .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:999; align-items:center; justify-content:center; }
@@ -159,6 +165,7 @@
   @media(max-width:600px) {
     /* NAV — two rows on mobile */
     nav {
+      display:flex;
       padding:0;
       height:auto;
       flex-direction:column;
@@ -225,7 +232,7 @@
       <img src="CRGLogo.svg" style="height:44px;width:auto;display:block;" alt="CRG">
       CRG <span>TM</span>
     </div>
-    <button class="nav-lock" id="lock-btn" onclick="toggleLock()" title="Admin">🔒</button>
+    <button class="nav-lock nav-lock-mobile" onclick="toggleLock()" title="Admin">🔒</button>
   </div>
   <!-- Center tabs -->
   <div class="nav-tabs">
@@ -242,6 +249,7 @@
     <select class="month-select" id="month-select" onchange="onMonthChange()">
       <option value="">— select month —</option>
     </select>
+    <button class="nav-lock nav-lock-desktop" id="lock-btn" onclick="toggleLock()" title="Admin">🔒</button>
   </div>
 </nav>
 
@@ -1190,10 +1198,10 @@ async function sha256(str) {
 
 function setAdminUnlocked(unlocked) {
   const tab = document.getElementById('tab-admin');
-  const btn = document.getElementById('lock-btn');
+  const icon = unlocked ? '🔓' : '🔒';
+  const title = unlocked ? 'Lock admin' : 'Admin';
+  document.querySelectorAll('.nav-lock').forEach(btn => { btn.textContent = icon; btn.title = title; });
   tab.style.display = unlocked ? '' : 'none';
-  btn.textContent = unlocked ? '🔓' : '🔒';
-  btn.title = unlocked ? 'Lock admin' : 'Admin';
   if (unlocked) localStorage.setItem('crg_admin', '1');
   else { localStorage.removeItem('crg_admin'); showPage('leaderboard', document.querySelector('.nav-tab')); }
 }
