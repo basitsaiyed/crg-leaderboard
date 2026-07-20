@@ -325,7 +325,7 @@
       <div class="info-box">
         <strong>📋 How the sheet is read:</strong><br>
         The app reads your CRG-format sheet automatically. Each month block starts with a title row ("CRG Toastmasters... [Month]"), followed by a <strong>CRG Team</strong> row, then a <strong>header row</strong> (TMOD, Prepared Speech - 1, etc.), then meeting rows where Column A = date and the rest = member names.<br><br>
-        Column headers supported: <strong>TMOD · Prepared Speech - 1/2/3 · Speech Evaluator - 1/2/3 · General Evaluator · Timer · Ah-counter · Grammarian · TTM</strong>
+        Column headers supported: <strong>TMOD · Prepared Speech - 1/2/3/4/5/6 · Speech Evaluator - 1/2/3/4/5/6 · General Evaluator · Timer · Ah-counter · Grammarian · TTM</strong>
       </div>
       <div id="admin-status"></div>
     </div>
@@ -350,9 +350,15 @@ const DEFAULT_ROLES = [
   { col:'Prepared Speech - 1',   cat:'speech', pts:15 },
   { col:'Prepared Speech - 2',   cat:'speech', pts:15 },
   { col:'Prepared Speech - 3',   cat:'speech', pts:15 },
+  { col:'Prepared Speech - 4',   cat:'speech', pts:15 },
+  { col:'Prepared Speech - 5',   cat:'speech', pts:15 },
+  { col:'Prepared Speech - 6',   cat:'speech', pts:15 },
   { col:'Speech Evaluator - 1',  cat:'eval',   pts:12 },
   { col:'Speech Evaluator - 2',  cat:'eval',   pts:12 },
   { col:'Speech Evaluator - 3',  cat:'eval',   pts:12 },
+  { col:'Speech Evaluator - 4',  cat:'eval',   pts:12 },
+  { col:'Speech Evaluator - 5',  cat:'eval',   pts:12 },
+  { col:'Speech Evaluator - 6',  cat:'eval',   pts:12 },
   { col:'General Evaluator',     cat:'eval',   pts:12 },
   { col:'TTM',                   cat:'tmod',   pts:12 },
   { col:'Grammarian',            cat:'core',   pts:10 },
@@ -366,9 +372,15 @@ const COL_DISPLAY = {
   'Prepared Speech - 1': 'Prepared Speech',
   'Prepared Speech - 2': 'Prepared Speech',
   'Prepared Speech - 3': 'Prepared Speech',
+  'Prepared Speech - 4': 'Prepared Speech',
+  'Prepared Speech - 5': 'Prepared Speech',
+  'Prepared Speech - 6': 'Prepared Speech',
   'Speech Evaluator - 1': 'Speech Evaluator',
   'Speech Evaluator - 2': 'Speech Evaluator',
   'Speech Evaluator - 3': 'Speech Evaluator',
+  'Speech Evaluator - 4': 'Speech Evaluator',
+  'Speech Evaluator - 5': 'Speech Evaluator',
+  'Speech Evaluator - 6': 'Speech Evaluator',
   'General Evaluator': 'General Evaluator',
   'TTM': 'TTM',
   'Grammarian': 'Grammarian',
@@ -378,6 +390,15 @@ const COL_DISPLAY = {
 
 const DEFAULT_SHEET_ID = '1dnleRBqFDJ4Tslwb0eYBWMrZrQYrUzOvaE_p2N4VU6Y';
 const DEFAULT_TAB_NAME = 'Sheet1';
+
+// Migrate cached roles: if localStorage has fewer roles than DEFAULT_ROLES,
+// it's an old config — clear it so DEFAULT_ROLES (with slots 4-6) is used.
+(function migrateRoles() {
+  const saved = JSON.parse(localStorage.getItem('crg_roles') || 'null');
+  if (saved && saved.length < DEFAULT_ROLES.length) {
+    localStorage.removeItem('crg_roles');
+  }
+})();
 
 let S = {
   roles:   JSON.parse(localStorage.getItem('crg_roles') || 'null') || DEFAULT_ROLES,
