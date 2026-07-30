@@ -711,7 +711,7 @@ function parseSheet(csv) {
           const v = (row[c] || '').trim();
           if (v && v.toLowerCase() !== 'na' && v !== '-') {
             // Clean up name-like annotations
-            const clean = v.replace(/\s*\(.*?\)/g, '').replace(/\s+L\d+P\d+$/i, '').trim();
+            const clean = v.replace(/\s*\(.*?\)/g, '').replace(/\s*\[.*?\]/g, '').replace(/\s+L\d+P\d+$/i, '').trim();
             if (clean && !eventNames.includes(clean)) eventNames.push(clean);
           }
         }
@@ -737,15 +737,18 @@ function parseSheet(csv) {
         const rawNames = cellVal.includes(',') ? cellVal.split(',') : [cellVal];
         rawNames.forEach(raw => {
           let name = raw.trim();
-          // Extract bracket annotation (e.g. L2P3, CC, ACB) before stripping
-          const annotMatch = name.match(/\(([^)]+)\)/);
-          const annotation = annotMatch ? annotMatch[1].trim() : '';
+          // [L4P1] = speech level/project; (Guest) / (Gavel) = role qualifier
+          const sqMatch    = name.match(/\[([^\]]+)\]/);
+          const parenMatch = name.match(/\(([^)]+)\)/);
+          const levelTag   = sqMatch    ? sqMatch[1].trim()    : ''; // e.g. "L4P1"
+          const roleTag    = parenMatch ? parenMatch[1].trim() : ''; // e.g. "Guest"
           name = name.replace(/\s*\(.*?\)/g, '').trim();        // remove (...)
-          name = name.replace(/\s+L\d+P\d+$/i, '').trim();      // remove L1P2 etc
+          name = name.replace(/\s*\[.*?\]/g, '').trim();        // remove [L4P1] etc
+          name = name.replace(/\s+L\d+P\d+$/i, '').trim();      // remove bare L1P2 etc
           name = name.replace(/\s*-\s*[A-Za-z\s]+session.*/i, '').trim(); // remove "- Education Session"
           if (!name || name.toLowerCase() === 'na' || name === 'TCoS') return;
 
-          meetingEntries.push({ role: colHeader, display: roleDef.display, pts: roleDef.pts, cat: roleDef.cat, name, annotation });
+          meetingEntries.push({ role: colHeader, display: roleDef.display, pts: roleDef.pts, cat: roleDef.cat, name, levelTag, roleTag });
 
           if (!monthData.members[name]) monthData.members[name] = { pts: 0, roles: [], meetingDates: new Set(), scoredRoles: new Set() };
           // Only count points once per unique display role per member
@@ -753,7 +756,7 @@ function parseSheet(csv) {
             monthData.members[name].pts += roleDef.pts;
             monthData.members[name].scoredRoles.add(roleDef.display);
           }
-          monthData.members[name].roles.push({ col: colHeader, display: roleDef.display, pts: roleDef.pts, cat: roleDef.cat, date: dateLabel, annotation });
+          monthData.members[name].roles.push({ col: colHeader, display: roleDef.display, pts: roleDef.pts, cat: roleDef.cat, date: dateLabel, levelTag, roleTag });
           monthData.members[name].meetingDates.add(dateLabel);
         });
       }
@@ -837,11 +840,8 @@ function renderLeaderboard(data, label) {
       `<span class="chip ${cat}">${name}${count > 1 ? ' ×' + count : ''}</span>`
     ).join('');
 
-    // Collect unique annotations across all roles for this member
-    const uniqueAnnotations = [...new Set(m.roles.map(r => r.annotation).filter(Boolean))];
-    const annotations = uniqueAnnotations.map(a =>
-      `<span class="member-sub-sep">·</span><span class="chip" style="background:#e8f0fe;color:#1a3a8a;border-color:#c5d5f5;font-size:10px;">${a}</span>`
-    ).join('');
+    // no level tags in leaderboard view
+    const annotations = '';
 
     const rankEl = i < 3
       ? `<span style="font-size:20px">${medals[i]}</span>`
@@ -910,7 +910,7 @@ function renderMeetings(data) {
     const entries = item.entries.map(e =>
       `<div class="role-entry">
         <span class="chip ${e.cat}">${e.display}</span>
-        <span class="rname">${e.name}${e.annotation ? ` <span style="font-size:10px;color:var(--text3);font-weight:400;">(${e.annotation})</span>` : ''}</span>
+        <span class="rname">${e.name}${e.levelTag ? ` <span style="font-size:10px;font-weight:600;color:var(--navy);background:#e8f0fa;border:1px solid #c5d5ee;border-radius:3px;padding:1px 4px;">[${e.levelTag}]</span>` : ''}${e.roleTag ? ` <span style="font-size:10px;color:var(--text3);font-weight:400;font-style:italic;">(${e.roleTag})</span>` : ''}</span>
         <span class="rpts">+${e.pts}</span>
       </div>`
     ).join('');
@@ -1008,11 +1008,7 @@ async function downloadPDF() {
       const initials = m.name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
       const pct = Math.round((m.pts / maxPts) * 100);
 
-      // Unique annotations for this member
-      const memberAnnotations = [...new Set(m.roles.map(r => r.annotation).filter(Boolean))];
-      const annotHtml = memberAnnotations.map(a =>
-        `<span style="font-size:.48rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 4px;border-radius:2px;background:#dce7f5;color:#1e3a5e;margin-left:4px;">${a}</span>`
-      ).join('');
+      const annotHtml = '';
 
       const dateCells = dates.map(date => {
         const dayRoles = m.roles.filter(r => r.date === date);
