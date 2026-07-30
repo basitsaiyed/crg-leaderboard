@@ -931,6 +931,122 @@ function renderMeetings(data) {
 // Mobile:  renders via html2canvas + jsPDF → direct .pdf download
 // To edit PDF layout/styles → edit leaderboard.html directly
 // ============================================================
+function getPDFTemplate() {
+return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=794"/>
+<title>{{PDF_TITLE}}</title>
+<style>
+:root{--navy:#1e3a5e;--navy-dk:#122440;--navy-lt:#2a5080;--navy-faint:#f0f4f9;--gold:#c8993a;--gold-light:#e8be6a;--white:#fafcff;--text:#0f1f35;--text-soft:#3a5878;--text-muted:#7a9ab8;--border:#c8d8e8;--border-lt:#dde8f2;}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{width:794px;background:var(--navy-faint);color:var(--text);font-family:'DM Sans',Arial,sans-serif;font-weight:400;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+.hero{position:relative;overflow:hidden;}
+.hero-bg{position:absolute;inset:0;background:#1e3a5e;}
+.hero-inner{position:relative;z-index:2;width:100%;padding:24px 24px 20px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:20px;}
+.hero-logo img{width:90px;height:auto;display:block;}
+.hero-logo-fallback{width:60px;height:60px;border-radius:50%;border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;color:var(--gold);font-size:11px;font-weight:600;}
+.hero-club{font-family:'DM Serif Display',Georgia,serif;font-size:2rem;font-weight:400;line-height:1.1;color:#f0f6ff;}
+.hero-club em{font-style:italic;color:var(--gold-light);}
+.hero-divider{width:50px;height:1px;background:var(--gold);margin:8px 0;}
+.hero-subtitle{font-size:.8rem;font-style:italic;color:rgba(200,220,255,.6);line-height:1.5;}
+.hero-month{font-family:'DM Sans',Arial,sans-serif;font-size:.95rem;font-weight:700;color:var(--gold-light);letter-spacing:.03em;margin-top:6px;}
+.hero-stats{display:flex;flex-direction:column;gap:8px;align-items:flex-end;}
+.stat-orb{background:rgba(255,255,255,.06);border:1px solid rgba(200,153,58,.3);border-radius:4px;padding:10px 14px;text-align:center;min-width:84px;}
+.stat-orb .v{font-family:'DM Serif Display',Georgia,serif;font-size:1.6rem;font-weight:400;color:var(--gold-light);line-height:1;}
+.stat-orb .l{font-size:.5rem;letter-spacing:.12em;text-transform:uppercase;color:rgba(200,153,58,.6);margin-top:3px;}
+.main{width:100%;padding:16px 24px 24px;}
+.section-label{display:flex;align-items:center;gap:14px;margin-bottom:14px;}
+.section-label::before,.section-label::after{content:'';flex:1;height:1px;background:var(--border);}
+.section-label span{font-family:'DM Sans',Arial,sans-serif;font-size:.8rem;font-weight:500;color:var(--text-muted);letter-spacing:.08em;white-space:nowrap;text-transform:uppercase;}
+.board-wrap{background:var(--white);border-radius:6px;border:1px solid var(--border-lt);overflow:hidden;}
+table{width:100%;border-collapse:collapse;font-size:.78rem;table-layout:fixed;}
+thead tr{background:var(--navy);border-bottom:2px solid var(--gold);}
+thead th{padding:10px 6px;font-size:.52rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(200,220,255,.5);text-align:center;overflow:hidden;}
+thead th.th-rank{width:40px;}thead th.th-name{width:140px;text-align:left;padding-left:10px;}
+thead th.th-total{width:60px;color:var(--gold-light);background:rgba(200,153,58,.1);}
+.date-th-badge{display:flex;flex-direction:column;align-items:center;background:rgba(255,255,255,.1);border-radius:4px;padding:4px;}
+.date-th-day{font-family:Georgia,serif;font-size:.88rem;font-weight:700;color:#fff;line-height:1;}
+.date-th-mon{font-size:.52rem;font-weight:600;color:rgba(255,255,255,.65);margin-top:1px;}
+tbody tr{border-bottom:1px solid var(--border-lt);}tbody tr:last-child{border-bottom:none;}
+td.td-rank{width:40px;padding:0 4px 0 8px;text-align:center;}
+.rank-num{font-weight:700;font-size:1rem;color:var(--text-muted);}
+tr.rank-1 .rank-num{color:var(--gold);}tr.rank-2 .rank-num{color:#8a9ab8;}tr.rank-3 .rank-num{color:#a07848;}
+tr.rank-1 td:first-child{box-shadow:inset 3px 0 0 var(--gold);}
+tr.rank-2 td:first-child{box-shadow:inset 3px 0 0 #8a9ab8;}
+tr.rank-3 td:first-child{box-shadow:inset 3px 0 0 #a07848;}
+td.td-name{width:140px;padding:10px 6px 10px 8px;text-align:left;}
+.person{display:flex;align-items:center;gap:8px;}
+.avatar{width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.72rem;border:2px solid transparent;}
+tr.rank-1 .avatar{border-color:var(--gold);}tr.rank-2 .avatar{border-color:#8a9ab8;}tr.rank-3 .avatar{border-color:#a07848;}
+.person-name{font-weight:600;font-size:.85rem;color:var(--text);white-space:normal;word-break:break-word;}
+td.td-date{padding:6px 3px;text-align:center;vertical-align:middle;}
+.cell-entries{display:flex;flex-direction:column;gap:3px;align-items:center;}
+.entry-item{display:flex;flex-direction:column;align-items:center;gap:1px;}
+.role-tag{font-size:.48rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 4px;border-radius:2px;white-space:nowrap;}
+.pts-val{font-family:'DM Serif Display',Georgia,serif;font-weight:400;font-size:.82rem;color:var(--navy);}
+.pts-sign{font-size:.52rem;color:var(--text-muted);}
+.no-pts{color:var(--border);font-size:.82rem;}
+td.td-total{width:60px;padding:10px 6px;text-align:center;vertical-align:middle;background:rgba(30,58,94,.04);border-left:1px solid var(--border-lt);}
+.total-big{font-family:'DM Serif Display',Georgia,serif;font-size:1.25rem;font-weight:400;line-height:1;display:block;text-align:center;}
+tr.rank-1 .total-big{color:var(--gold);}tr.rank-2 .total-big{color:#8a9ab8;}tr.rank-3 .total-big{color:#a07848;}
+.total-big.rest{color:var(--text-soft);}
+.mini-bar{width:36px;height:3px;background:var(--border-lt);border-radius:2px;margin:4px auto 0;overflow:hidden;}
+.mini-fill{height:100%;border-radius:2px;background:var(--navy-lt);}
+tr.rank-1 .mini-fill{background:var(--gold);}tr.rank-2 .mini-fill{background:#8a9ab8;}tr.rank-3 .mini-fill{background:#a07848;}
+.rt-tmod{background:#dce7f5;color:#1e3a5e;}.rt-speech{background:#d4eddf;color:#1a5a3a;}
+.rt-eval{background:#d8e4f5;color:#2a5080;}.rt-ttm{background:#f5e8d0;color:#7a5010;}
+.rt-timer{background:#d0ecf0;color:#0a6070;}.rt-ah{background:#ead5f5;color:#6a208a;}
+.rt-gram{background:#f5e0cc;color:#9a5000;}.rt-ge{background:#dce7f5;color:#2a5080;}
+.av-1{background:#dce7f5;color:#1e3a5e;}.av-2{background:#d4eddf;color:#1a5a3a;}
+.av-3{background:#d8e4f5;color:#2a5080;}.av-4{background:#f5e8d0;color:#8a6010;}
+.av-5{background:#ead5f5;color:#6a208a;}.av-6{background:#d0ecf0;color:#0a6070;}
+.av-7{background:#f5e0cc;color:#9a5000;}.av-8{background:#dddaf5;color:#3a3aa0;}
+.av-9{background:#f5d8d8;color:#9a2828;}.av-10{background:#d4f0dd;color:#287a3c;}
+.av-11{background:#ead5f5;color:#7a3a9a;}.av-12{background:#d4e8f5;color:#286080;}
+.footer{background:var(--navy-dk);border-top:1px solid rgba(200,153,58,.2);padding:14px 24px;text-align:center;}
+.footer-logo{font-size:.88rem;font-weight:500;color:rgba(200,220,255,.5);}
+.footer-logo strong{font-weight:700;color:var(--gold-light);}
+.footer-meta{margin-top:4px;font-size:.55rem;letter-spacing:.1em;text-transform:uppercase;color:rgba(200,153,58,.4);}
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-inner">
+    <div class="hero-logo">{{LOGO_HTML}}</div>
+    <div class="hero-text">
+      <h1 class="hero-club">CRG <em>Toastmasters</em></h1>
+      <div class="hero-divider"></div>
+      <p class="hero-subtitle"><em>Where every role earns its voice, and every word builds a leader.</em></p>
+      <div class="hero-month">{{MONTH}}</div>
+    </div>
+    <div class="hero-stats">
+      <div class="stat-orb"><div class="v">{{STAT_MEMBERS}}</div><div class="l">Members</div></div>
+      <div class="stat-orb"><div class="v">{{STAT_MEETINGS}}</div><div class="l">Meetings</div></div>
+      <div class="stat-orb"><div class="v">{{STAT_TOP}}</div><div class="l">Top Score</div></div>
+    </div>
+  </div>
+</header>
+<main class="main">
+  <div class="section-label"><span>Member Rankings</span></div>
+  <div class="board-wrap">
+    <table>
+      <thead><tr><th class="th-rank">#</th><th class="th-name">Member</th>{{DATE_HEADERS}}<th class="th-total">Total</th></tr></thead>
+      <tbody>{{ROWS}}</tbody>
+    </table>
+  </div>
+</main>
+<footer class="footer">
+  <div class="footer-logo"><strong>CRG Toastmasters</strong> Club</div>
+  <div class="footer-meta">{{STAT_MEMBERS}} active members</div>
+</footer>
+<script>document.querySelectorAll('.mini-fill').forEach(function(el){el.style.width=el.dataset.pct+'%';});<\/script>
+</body>
+</html>`;
+}
+
 async function downloadPDF() {
   const sorted = S._sorted;
   if (!sorted || !sorted.length) return;
@@ -943,14 +1059,10 @@ async function downloadPDF() {
   pdfBtn.disabled = true;
 
   try {
-    // 1. Fetch template and logo in parallel
-    const [tmplResp, logoResp] = await Promise.all([
-      fetch('leaderboard.html'),
-      fetch('CRGLogo.svg').catch(() => null),
-    ]);
-    let template = await tmplResp.text();
-
+    // 1. Load template (inline — avoids file:// fetch block) and logo in parallel
+    const template = getPDFTemplate();
     let logoDataUrl = '';
+    const logoResp = await fetch('CRGLogo.svg').catch(() => null);
     if (logoResp && logoResp.ok) {
       const lb = await logoResp.blob();
       logoDataUrl = await new Promise(res => {
