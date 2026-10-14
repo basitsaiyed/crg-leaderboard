@@ -123,6 +123,13 @@
   .role-row input:focus { outline:2px solid var(--navy); outline-offset:1px; }
   select.cat-sel { border:1px solid var(--border); border-radius:5px; padding:4px 6px; font-size:11px; font-family:inherit; background:var(--bg2); width:100%; }
 
+  /* HIDDEN NAMES */
+  .hidden-names-add { display:flex; gap:8px; align-items:center; margin-bottom:14px; }
+  .hidden-name-row { display:flex; align-items:center; justify-content:space-between; padding:9px 18px; border-top:1px solid var(--border); font-size:13px; }
+  .hidden-name-row:first-child { border-top:none; }
+  .hidden-name-label { font-weight:500; color:var(--text); }
+  .hidden-names-empty { padding:14px 18px; font-size:12px; color:var(--text3); border-top:1px solid var(--border); }
+
   /* BUTTONS */
   .btn { display:inline-flex; align-items:center; gap:5px; padding:8px 14px; border-radius:7px; font-size:13px; font-weight:500; cursor:pointer; border:1px solid var(--border); background:var(--bg); color:var(--text); font-family:inherit; transition:all .12s; }
   .btn:hover { background:var(--bg3); }
@@ -347,6 +354,26 @@
       <button class="btn btn-primary btn-sm" onclick="saveRoles()">Save role points</button>
     </div>
   </div>
+
+  <div class="card">
+    <div class="card-hdr">
+      Hidden from leaderboard
+      <span style="font-size:11px;font-weight:400;color:var(--text3);margin-left:6px;">Names on this list are excluded from rankings and PDF</span>
+    </div>
+    <div class="card-body" style="padding-bottom:0">
+      <div class="hidden-names-add">
+        <input class="field" type="text" id="hidden-name-input"
+          placeholder="Type a name exactly as it appears in the sheet…"
+          onkeydown="if(event.key==='Enter')addHiddenName()"
+          style="margin-bottom:0;flex:1;">
+        <button class="btn btn-sm btn-primary" onclick="addHiddenName()">+ Hide</button>
+      </div>
+    </div>
+    <div id="hidden-names-list"></div>
+    <div class="hidden-names-empty" id="hidden-names-empty">
+      No names hidden — everyone appears on the leaderboard.
+    </div>
+  </div>
 </div>
 
 <script>
@@ -409,9 +436,10 @@ const DEFAULT_TAB_NAME = 'Sheet1';
 })();
 
 let S = {
-  roles:   JSON.parse(localStorage.getItem('crg_roles') || 'null') || DEFAULT_ROLES,
-  sheetId: localStorage.getItem('crg_sid') || DEFAULT_SHEET_ID,
-  tabName: localStorage.getItem('crg_tab') || DEFAULT_TAB_NAME,
+  roles:       JSON.parse(localStorage.getItem('crg_roles') || 'null') || DEFAULT_ROLES,
+  sheetId:     localStorage.getItem('crg_sid') || DEFAULT_SHEET_ID,
+  tabName:     localStorage.getItem('crg_tab') || DEFAULT_TAB_NAME,
+  hiddenNames: JSON.parse(localStorage.getItem('crg_hidden') || '[]'), // names excluded from leaderboard
   allData: null,   // parsed: { [monthKey]: { meetings:[], members:{} } }
   months:  [],     // list of month keys in order
   current: '',     // selected month key
@@ -793,7 +821,9 @@ function renderCurrentMonth() {
 }
 
 function renderLeaderboard(data, label) {
+  const hidden = new Set(S.hiddenNames.map(n => n.toLowerCase()));
   const sorted = Object.entries(data.members)
+    .filter(([name]) => !hidden.has(name.toLowerCase()))
     .map(([name, d]) => ({ name, pts: d.pts, roles: d.roles, meetings: d.meetingDates.size }))
     .sort((a, b) => b.pts - a.pts);
 
@@ -1048,7 +1078,7 @@ tr.rank-1 .mini-fill{background:var(--gold);}tr.rank-2 .mini-fill{background:#8a
 }
 
 async function downloadPDF() {
-  const sorted = S._sorted;
+  const sorted = S._sorted;  // already filtered by renderLeaderboard (hidden names excluded)
   if (!sorted || !sorted.length) return;
   const month = S.view === 'alltime' ? 'All Time' : (S.current || 'Leaderboard');
   const data   = S.view === 'alltime' ? buildAllTimeData() : S.allData[S.current];
@@ -1255,6 +1285,52 @@ async function downloadPDF() {
 // ============================================================
 // ADMIN — ROLES
 // ============================================================
+// ============================================================
+// ADMIN — HIDDEN NAMES
+// ============================================================
+function renderHiddenNames() {
+  const list  = document.getElementById('hidden-names-list');
+  const empty = document.getElementById('hidden-names-empty');
+  if (!S.hiddenNames.length) {
+    list.innerHTML  = '';
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+  list.innerHTML = S.hiddenNames.map((name, i) => `
+    <div class="hidden-name-row">
+      <span class="hidden-name-label">${name}</span>
+      <button class="btn btn-danger btn-sm" onclick="removeHiddenName(${i})">Remove</button>
+    </div>`).join('');
+}
+
+function addHiddenName() {
+  const input = document.getElementById('hidden-name-input');
+  const name  = input.value.trim();
+  if (!name) return;
+  // Case-insensitive duplicate check
+  if (S.hiddenNames.some(n => n.toLowerCase() === name.toLowerCase())) {
+    input.value = '';
+    return;
+  }
+  S.hiddenNames.push(name);
+  localStorage.setItem('crg_hidden', JSON.stringify(S.hiddenNames));
+  input.value = '';
+  renderHiddenNames();
+  // Refresh leaderboard so the change is visible immediately
+  renderCurrentMonth();
+}
+
+function removeHiddenName(i) {
+  S.hiddenNames.splice(i, 1);
+  localStorage.setItem('crg_hidden', JSON.stringify(S.hiddenNames));
+  renderHiddenNames();
+  renderCurrentMonth();
+}
+
+// ============================================================
+// ADMIN — ROLES
+// ============================================================
 function renderRolesList() {
   document.getElementById('roles-list').innerHTML = S.roles.map((r, i) => `
     <div class="role-row">
@@ -1355,6 +1431,7 @@ function init() {
   if (localStorage.getItem('crg_admin')) setAdminUnlocked(true);
 
   renderRolesList();
+  renderHiddenNames();
   document.getElementById('cfg-sheet-id').value = S.sheetId;
   document.getElementById('cfg-tab').value      = S.tabName;
   if (S.sheetId) loadData();
